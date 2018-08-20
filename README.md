@@ -1,2 +1,10 @@
 # untappd-data-cleaner
-removes duplicate check ins from untappd json data
+Removes duplicate beer checkins from untappds .json data and creates a .csv of just unique checkins
+
+
+# Usage
+
+Run `python3 untappd.py untappddata.json`
+
+![output](https://github.com/claydugo/untappd-data-cleaner/blob/master/scr/untappd-uniques-cl.png?raw=true)
+
