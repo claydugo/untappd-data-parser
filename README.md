@@ -1,5 +1,5 @@
 # untappd-data-cleaner
-Removes duplicate beer checkins from untappds .json data and creates a .csv of just unique checkins. Useful for trying to analyze data while removing the 50+ 5 start check-ins of your favorite beer.
+Removes duplicate beer checkins from untappds .json data and creates a .csv of just unique checkins. Useful for trying to analyze data while removing the 50+ 5 star check-ins of your favorite beer.
 
 
 # Usage
