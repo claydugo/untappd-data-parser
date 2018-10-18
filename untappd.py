@@ -65,6 +65,6 @@ def main():
     indexes = dupeFinder()
     createcsv(indexes)
     createjson()
-    print('Created ' + fne + ' and ' + fnej + '  with just your unique beer check-ins')
+    print('Created ' + fne + ' and ' + fnej + ' with just your unique beer check-ins')
 
 main()
