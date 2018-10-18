@@ -7,6 +7,8 @@ p.add_argument('file', help='name of the json file to extract uniques from')
 a = p.parse_args()
 
 data = json.load(open(a.file))
+fne = str(a.file[:len(a.file)-5]) + '-uniques.csv'
+fnej = str(a.file[:len(a.file)-5]) + '-uniques.json'
 
 def dupeFinder():
     print('Reading ' + a.file + ' and detecting duplicate beers')
@@ -31,7 +33,7 @@ def dupeFinder():
 
 
 def createcsv(indexes):
-    with open(str(a.file[:len(a.file)-5]) + '-uniques.csv', 'w') as f:
+    with open(fne, 'w') as f:
         cw = csv.writer(f)
         cw.writerow(['beer_name', 'brewery_name', 'beer_type', 'beer_abv', 'beer_ibu', 'comment', 'venue_name',
                      'venue_city', 'venue_state', 'venue_country', 'venue_lat', 'venue_lng', 'rating_score',
@@ -45,13 +47,24 @@ def createcsv(indexes):
                         data[i]['checkin_url'], data[i]['beer_url'], data[i]['brewery_url'],
                         data[i]['brewery_country'], data[i]['brewery_city'], data[i]['brewery_state'],
                         data[i]['flavor_profiles'], data[i]['purchase_venue'], data[i]['serving_type']])
-        print('Created ' + str(a.file[:len(a.file)-5])  + '-uniques.csv with just your unique beer check-ins')
+
+
+def createjson():
+    ucsv = open(fne, 'r')
+    ujson = open(fnej, 'w')
+    r = csv.DictReader(ucsv)
+    ujson.write('[')
+    for i in r:
+        json.dump(i, ujson)
+        ujson.write(',')
+    ujson.write(']')
 
 
 def main():
     print('\n')
     indexes = dupeFinder()
     createcsv(indexes)
-
+    createjson()
+    print('Created ' + fne + ' and ' + fnej + '  with just your unique beer check-ins')
 
 main()
