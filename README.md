@@ -9,8 +9,7 @@ Run `python3 untappd.py <UNTAPPD-DATA>.json`
 
 or
 
-`chmod +x untappd.py
-./untappd.py <UNTAPPD-DATA>.json`
+`./untappd.py <UNTAPPD-DATA>.json`
 
 ![output](https://github.com/claydugo/untappd-data-cleaner/blob/master/scr/untappd-uniques-cl.png?raw=true)
 
