@@ -34,6 +34,12 @@ csv_header = [
     'flavor_profiles',
     'purchase_venue',
     'serving_type',
+    'checkin_id',
+    'bid',
+    'brewery_id',
+    'photo_url',
+    'global_rating_score',
+    'global_weighted_rating_score'
     ]
 
 
@@ -46,11 +52,12 @@ def main():
 
     with open(fne, 'w') as fcsv:
         cw = csv.DictWriter(fcsv, fieldnames=csv_header)
+        cw.writeheader()
         for i in range(0, len(uniques)):
             cw.writerow(uniques[i])
 
     with open(fnej, 'w') as fjson:
-        json.dump(uniques, fjson)
+        json.dump(uniques, fjson, separators=(',', ':'))
 
     print('\nCreated ' + fne + ' and ' + fnej +
           ' with just your unique beer check-ins')
