@@ -11,7 +11,6 @@ data = json.load(open(a.file))
 fne = str(a.file[:len(a.file)-5]) + '-uniques.csv'
 fnej = str(a.file[:len(a.file)-5]) + '-uniques.json'
 
-
 uniques = list({x['beer_url']: x for x in data}.values())
 csv_header = list(data[0].keys())
 dupes = len(data) - len(uniques)
@@ -30,3 +29,4 @@ with open(fnej, 'w') as fjson:
 
 print('Created ' + fne + ' and ' + fnej +
       ' with just your unique beer check-ins')
+
