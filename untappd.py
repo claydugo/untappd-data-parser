@@ -11,8 +11,9 @@ data = json.load(open(a.file))
 fne = str(a.file[:len(a.file)-5]) + '-uniques.csv'
 fnej = str(a.file[:len(a.file)-5]) + '-uniques.json'
 
+# Sort by url because some breweries name beers the same thing
 uniques = list({x['beer_url']: x for x in data}.values())
-csv_header = list(data[0].keys())
+csv_header = list(data[0].keys()) # Get headers from file
 dupes = len(data) - len(uniques)
 
 print("You have " + str(len(data)) + ' total check-ins with ' +
