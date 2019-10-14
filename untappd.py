@@ -16,8 +16,8 @@ uniques = list({x['beer_url']: x for x in data}.values())
 csv_header = list(data[0].keys())  # Get headers from file
 dupes = len(data) - len(uniques)
 
-print('You have {} total check-ins with {} uniques'
-      ' and {} duplicates\n'.format(len(data), len(uniques), dupes))
+print(f'You have {len(data)} total check-ins with {len(uniques)} uniques '
+      f'and {dupes} duplicates\n')
 
 with open(fne, 'w') as fcsv:
     cw = csv.DictWriter(fcsv, fieldnames=csv_header)
@@ -28,6 +28,6 @@ with open(fne, 'w') as fcsv:
 with open(fnej, 'w') as fjson:
     json.dump(uniques, fjson, separators=(',', ':'))
 
-print('Created {} and {} with just your unique beer'
-      ' check-ins'.format(fne, fnej))
+print(f'Created {fne} and {fnej} with just your unique beer'
+      ' check-ins')
 
