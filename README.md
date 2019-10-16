@@ -7,7 +7,7 @@
 
 Run `python3 untappd.py <UNTAPPD-DATA>.json`
 
-![output](https://github.com/claydugo/untappd-data-cleaner/blob/master/scr/untappd-uniques-cl.png?raw=true)
+![output](scr/untappd-uniques-cl.png)
 
 ## License
 MIT
