@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
-import json
-import csv
-import argparse
+import json, csv, argparse, os
 
 p = argparse.ArgumentParser()
+p.add_argument('--beer', action='store_true', help='remove duplicate beers')
+p.add_argument('--venue', action='store_true', help='remove duplicate venues')
 p.add_argument('file', help='name of the json file to extract uniques from')
 a = p.parse_args()
 
 data = json.load(open(a.file))
-fne = str(a.file[:len(a.file)-5]) + '-uniques.csv'
-fnej = str(a.file[:len(a.file)-5]) + '-uniques.json'
+fn = os.path.splitext(a.file)[0]
+fne = f'{fn}-uniques.csv'
+fnej = f'{fn}-uniques.json'
 
-# Sort by url because some breweries name beers the same thing
-uniques = list({x['beer_url']: x for x in data}.values())
+if a.venue == True:
+    key = 'venue_name' # No venue urls, have to sort by name with consequences.
+if a.beer == True:
+    key = 'beer_url' # Sort by url because some breweries name beers the same thing
+
+uniques = list({x[key]: x for x in data}.values())
 csv_header = list(data[0].keys())  # Get headers from file
 dupes = len(data) - len(uniques)
 
