@@ -1,7 +1,7 @@
 # untappd-data-cleaner
 [![License](https://img.shields.io/github/license/mashape/apistatus.svg)](https://github.com/claydugo/untappd-data-cleaner/blob/master/LICENSE)
 
-[Untappd](https://untappd.com/) allows you to download your checkin data in JSON and CSV formats (if you are a [supporter](https://untappd.com/supporter)). This is great, however they do not have an option to download the data of just your 'unique' checkins. This script will take the json file you downloaded from untappd and create both json and csv files with only your first checkins of each beer.
+[Untappd](https://untappd.com/) allows you to download your checkin data in JSON and CSV formats (if you are a [supporter](https://untappd.com/supporter)). This is great, however they do not have an option to download the data of just your 'unique' checkins. This script will take the json file you downloaded from untappd and create both json and csv files with only your last checkins of each beer.
 
 #### Why?
 For unique beers, I have personally checked in my favorite beer over 50 times with a rating of 5 stars and this skews my overall average ratings if using the standard dataset from untappd. (On your profile they calculate average from uniques only)
