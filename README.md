@@ -11,7 +11,7 @@ For unique venues, I use the service Google MyMaps to create the [beer map](http
 ## Usage
 
 To sort by unique beers
-Run `python3 untappd.py --beer <UNTAPPD-DATA>.json`
+Run `python3 untappd.py <UNTAPPD-DATA>.json`
 
 To sort by unique venues
 Run `python3 untappd.py --venue <UNTAPPD-DATA>.json`
