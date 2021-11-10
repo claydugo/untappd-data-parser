@@ -15,9 +15,9 @@ Run `python3 untappd.py <UNTAPPD-DATA>.json`
 
 ###### To sort by a different key
 List of keys:
-`
-'brewery_name', 'venue_name', 'beer_type', 'photo_url'
-`
+
+`'brewery_name', 'venue_name', 'beer_type', 'photo_url'`
+
 Adding additional keys will be trivial for you, but these made the most sense to include.
 
 Run `python3 untappd.py <UNTAPPD-DATA>.json --key <key_name>`

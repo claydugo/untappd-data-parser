@@ -19,10 +19,10 @@ def makeFiles(filename, data):
         for i in range(0, len(data)):
             cw.writerow(data[i])
 
-    with open(f'{fn}-uniques.json', 'w') as fjson:
+    with open(f'{filename}-uniques.json', 'w') as fjson:
         json.dump(data, fjson, separators=(',', ':'))
 
-    print('Created JSON and CSV with just your unique beer'
+    print('Created JSON and CSV with just your unique'
       ' check-ins')
 
 
