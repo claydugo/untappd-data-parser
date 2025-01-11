@@ -29,6 +29,7 @@ class UntappdParser:
         "venue_lat",
         "venue_lng",
         "created_at",
+        "total_venue_checkins",
     }
 
     def __init__(self, filename: str):
