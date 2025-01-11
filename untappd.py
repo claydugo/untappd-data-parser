@@ -1,88 +1,159 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 import json
 import csv
 import argparse
 import os
 from datetime import datetime
-
-# This is obviously subjective
-# I'm most concerned with not showcasing
-# how the sausage is made
-# So I just specify the few that I actually want
-good_keys = [
-    'beer_name',
-	'brewery_name',
-	'beer_type',
-	'venue_name',
-	'venue_lat',
-	'venue_lng',
-	'created_at',
-]
+from typing import List, Dict, Any
+from dataclasses import dataclass
+from collections import defaultdict
 
 
-def parse_beer_data(beer_data, key):
-    return list({x[key]: x for x in beer_data}.values())
+@dataclass
+class VenueLocation:
+    name: str
+    latitude: float
+    longitude: float
 
-def purge_backend_keys(beer_json, backend_keys):
-    return [dict((k,v) for k,v in check_in.items() if k not in backend_keys) for check_in in beer_json]
+    def __hash__(self) -> int:
+        return hash((self.name, self.latitude, self.longitude))
 
-def string_parse_keys(beer_json):
-    return [dict((k.replace('_', ' ').title(), v) for k,v in check_in.items()) for check_in in beer_json]
 
-def fancy_date_format(beer_json):
-    for check_in in beer_json:
-        date = check_in.pop('created_at', None)
-        if date is not None:
-            date = datetime.strptime(date, '%Y-%m-%d %H:%M:%S').strftime('%B %d, %Y at %I:%M%p')
-        check_in['Date Drank'] =  date
-    return beer_json
+class UntappdParser:
+    DESIRED_KEYS = {
+        "beer_name",
+        "brewery_name",
+        "beer_type",
+        "venue_name",
+        "venue_lat",
+        "venue_lng",
+        "created_at",
+    }
 
-def make_untappd_files(filename, beer_data):
-    csv_header = list(beer_data[-1].keys())  # Get headers from file
-    with open(f'{filename}.csv', 'w') as fcsv:
-        csv_writer = csv.DictWriter(fcsv, fieldnames=csv_header)
-        csv_writer.writeheader()
-        for check_in in range(0, len(beer_data)):
-            csv_writer.writerow(beer_data[check_in])
+    def __init__(self, filename: str):
+        self.filename = filename
+        self.data = self._load_data()
 
-    with open(f'{filename}.json', 'w') as fjson:
-        json.dump(beer_data, fjson, separators=(',', ':'))
+    def _load_data(self) -> List[Dict[str, Any]]:
+        with open(self.filename) as f:
+            return json.load(f)
 
-    print('Created JSON and CSV with just your unique'
-          ' check-ins')
+    def get_unique_entries(self, key: str) -> List[Dict[str, Any]]:
+        if key == "venue":
+            return self._get_unique_venues()
 
-if __name__ == '__main__':
-    p = argparse.ArgumentParser()
-    p.add_argument('--key', choices=['brewery_name', 'venue_name', 'beer_type', 'photo_url'])
-    p.add_argument('--no_human_keys', action=argparse.BooleanOptionalAction)
-    p.add_argument('--no_strip_backend', action=argparse.BooleanOptionalAction)
-    p.add_argument('--no_fancy_date_format', action=argparse.BooleanOptionalAction)
-    p.add_argument('file', help='name of the json file to extract unique_beers from')
-    arguments = p.parse_args()
+        return list({entry[key]: entry for entry in self.data}.values())
 
-    if arguments.key:
-        key = arguments.key
-    else:
-        key = 'bid' # If no key specified sort by unique beers
+    def _get_unique_venues(self) -> List[Dict[str, Any]]:
+        venue_checkins = defaultdict(int)
+        venue_data = {}
 
-    beer_data = json.load(open(arguments.file))
-    file_name = os.path.splitext(arguments.file)[0] + f'_unique_{key}'
+        for entry in self.data:
+            venue = VenueLocation(
+                name=entry["venue_name"],
+                latitude=entry["venue_lat"],
+                longitude=entry["venue_lng"],
+            )
+            venue_checkins[venue] += 1
+            venue_data[venue] = entry
 
-    unique_beers = parse_beer_data(beer_data, key)
+        result = []
+        for venue, entry in venue_data.items():
+            entry_copy = entry.copy()
+            entry_copy["total_venue_checkins"] = venue_checkins[venue]
+            result.append(entry_copy)
 
-    if not arguments.no_strip_backend:
-        backend_keys = [key for key in beer_data[-1].keys() if key not in good_keys]
-        unique_beers = purge_backend_keys(unique_beers, backend_keys)
+        return result
 
-    if not arguments.no_fancy_date_format:
-        unique_beers = fancy_date_format(unique_beers)
+    def clean_data(
+        self,
+        data: List[Dict[str, Any]],
+        strip_backend: bool = True,
+        fancy_dates: bool = True,
+        human_keys: bool = True,
+    ) -> List[Dict[str, Any]]:
+        result = data.copy()
 
-    if not arguments.no_human_keys:
-        unique_beers = string_parse_keys(unique_beers)
+        if strip_backend:
+            result = self._strip_backend_keys(result)
+        if fancy_dates:
+            result = self._format_dates(result)
+        if human_keys:
+            result = self._humanize_keys(result)
 
-    make_untappd_files(file_name, unique_beers)
-    duplicate_beers = len(beer_data) - len(unique_beers)
+        return result
 
-    print(f'You have {len(beer_data)} total check-ins with {len(unique_beers)} unique {key}\'s '
-          f'and {duplicate_beers} duplicates\n')
+    def _strip_backend_keys(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        backend_keys = set(data[0].keys()) - self.DESIRED_KEYS
+        return [
+            {k: v for k, v in entry.items() if k not in backend_keys} for entry in data
+        ]
 
+    @staticmethod
+    def _format_dates(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for entry in data:
+            if date := entry.pop("created_at", None):
+                formatted_date = datetime.strptime(date, "%Y-%m-%d %H:%M:%S").strftime(
+                    "%B %d, %Y at %I:%M%p"
+                )
+                entry["Date Drank"] = formatted_date
+        return data
+
+    @staticmethod
+    def _humanize_keys(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return [
+            {k.replace("_", " ").title(): v for k, v in entry.items()} for entry in data
+        ]
+
+    def save_files(self, data: List[Dict[str, Any]], key: str) -> None:
+        base_filename = f"{os.path.splitext(self.filename)[0]}_unique_{key}"
+
+        with open(f"{base_filename}.json", "w") as f:
+            json.dump(data, f, indent=2)
+
+        fieldnames = list(data[0].keys())
+        with open(f"{base_filename}.csv", "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(data)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Process Untappd check-in data")
+    parser.add_argument("file", help="JSON file containing Untappd check-in data")
+    parser.add_argument(
+        "--key",
+        choices=["brewery_name", "venue", "beer_type", "photo_url", "bid"],
+        default="venue",
+        help="Key to use for finding unique entries",
+    )
+    parser.add_argument(
+        "--no-strip-backend", action="store_true", help="Keep backend keys in output"
+    )
+    parser.add_argument(
+        "--no-fancy-dates", action="store_true", help="Keep original date format"
+    )
+    parser.add_argument(
+        "--no-human-keys", action="store_true", help="Keep original key names"
+    )
+
+    args = parser.parse_args()
+
+    parser = UntappdParser(args.file)
+    unique_entries = parser.get_unique_entries(args.key)
+
+    cleaned_data = parser.clean_data(
+        unique_entries,
+        strip_backend=not args.no_strip_backend,
+        fancy_dates=not args.no_fancy_dates,
+        human_keys=not args.no_human_keys,
+    )
+
+    parser.save_files(cleaned_data, args.key)
+
+    total_entries = len(parser.data)
+    unique_count = len(unique_entries)
+    print(f"Total check-ins: {total_entries}")
+    print(f"Unique {args.key}s: {unique_count}")
+    print(f"Duplicates: {total_entries - unique_count}")
