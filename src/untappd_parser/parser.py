@@ -118,8 +118,7 @@ class UntappdParser:
             return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").strftime("%B %d, %Y at %I:%M%p")
 
         for entry in data:
-            if date := entry.pop("created_at", None):
-                pass
+            entry.pop("created_at", None)
 
             if first_date := entry.pop("first_checkin", None):
                 entry["First Check-in"] = format_date_string(first_date)
