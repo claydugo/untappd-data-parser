@@ -119,7 +119,7 @@ class UntappdParser:
 
         for entry in data:
             if date := entry.pop("created_at", None):
-                entry["Date Drank"] = format_date_string(date)
+                pass
 
             if first_date := entry.pop("first_checkin", None):
                 entry["First Check-in"] = format_date_string(first_date)
