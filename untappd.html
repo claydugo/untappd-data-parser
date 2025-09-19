@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Untappd Data Parser</title>
+    <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css">
+    <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
+
+    <py-config>
+        [[fetch]]
+        from = "./src"
+        to_folder = "/"
+        files = ["untappd_parser/__init__.py", "untappd_parser/parser.py"]
+    </py-config>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-color: #328fa8;
+            --hover-color: #3aabc9;
+            --background-color: #f8f9fa;
+            --text-color: #343a40;
+            --font-family: Arial, sans-serif;
+            --header-height: 60px;
+            --border-color: #dee2e6;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--background-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0px 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 900px;
+            width: 100%;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            font-size: 1.8rem;
+        }
+
+        .subtitle {
+            color: var(--text-color);
+            margin-bottom: 30px;
+            opacity: 0.8;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            margin-bottom: 30px;
+            background: white;
+        }
+
+        .upload-area:hover {
+            border-color: var(--primary-color);
+            background: rgba(50, 143, 168, 0.05);
+        }
+
+        .upload-area.dragover {
+            border-color: var(--primary-color);
+            background: rgba(50, 143, 168, 0.1);
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+            margin: 5px;
+            display: inline-block;
+        }
+
+        .btn:hover:not(:disabled) {
+            background-color: var(--hover-color);
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #5a6268;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 30px 0;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .stat-label {
+            color: var(--text-color);
+            margin-top: 5px;
+            opacity: 0.8;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border: 1px solid;
+        }
+
+        .alert-error {
+            background: #fee;
+            color: #c00;
+            border-color: #fcc;
+        }
+
+        .alert-success {
+            background: #efe;
+            color: #060;
+            border-color: #cec;
+        }
+
+        .alert-info {
+            background: rgba(50, 143, 168, 0.1);
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid var(--border-color);
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            display: none;
+        }
+
+        .results.active {
+            display: block;
+        }
+
+        .export-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+            align-items: flex-start;
+        }
+
+        .venue-preview {
+            max-height: 400px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .venue-item {
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .venue-item:last-child {
+            border-bottom: none;
+        }
+
+        .venue-name {
+            font-weight: bold;
+            color: var(--text-color);
+        }
+
+        .venue-details {
+            color: var(--text-color);
+            opacity: 0.8;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .badge-primary {
+            background: rgba(50, 143, 168, 0.1);
+            color: var(--primary-color);
+        }
+
+        .badge-success {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .badge-warning {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        #pyscript-loading-message {
+            text-align: center;
+            padding: 20px;
+            color: var(--primary-color);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍺 Untappd Data Parser</h1>
+        <p class="subtitle">Analyze your Untappd check-in data</p>
+
+        <div id="pyscript-loading-message">
+            <div class="spinner"></div>
+            <p>Loading Python environment...</p>
+        </div>
+
+        <div id="main-content" class="hidden">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📁</div>
+                <p><strong>Click to upload or drag & drop your JSON file</strong></p>
+                <p style="margin-top: 10px; color: #999;">Maximum file size: 50MB</p>
+                <input type="file" id="fileInput" accept=".json,application/json">
+            </div>
+
+            <div id="processingOptions" style="background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; margin-bottom: 20px;">
+                <h3 style="margin-bottom: 15px; color: #333;">Processing Options</h3>
+                <div style="display: grid; gap: 10px;">
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="humanKeys" checked style="margin-right: 10px;">
+                        <span>Convert to human-readable keys (venue_name → Venue Name)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="stripBackend" checked style="margin-right: 10px;">
+                        <span>Remove backend-only keys (keep essential data only)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="fancyDates" checked style="margin-right: 10px;">
+                        <span>Format dates nicely (January 1, 2024 at 5:00PM)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="splitByVisits" checked style="margin-right: 10px;">
+                        <span>Create separate CSVs by visit count (1, 2-4, 5+)</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Processing your data...</p>
+            </div>
+
+            <div id="alerts"></div>
+
+            <div class="results" id="results">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0;">📊 Analysis Results</h2>
+                    <button class="btn btn-secondary" onclick="resetForNewFile()">📁 Process Another File</button>
+                </div>
+
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalCheckins">-</div>
+                        <div class="stat-label">Total Check-ins</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="uniqueVenues">-</div>
+                        <div class="stat-label">Unique Venues</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="duplicates">-</div>
+                        <div class="stat-label">Duplicate Check-ins</div>
+                    </div>
+                </div>
+
+                <h3>🏪 Venue Distribution</h3>
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-value" id="singleVisit">-</div>
+                        <div class="stat-label">1 Visit</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="twoToFour">-</div>
+                        <div class="stat-label">2-4 Visits</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="fivePlus">-</div>
+                        <div class="stat-label">5+ Visits</div>
+                    </div>
+                </div>
+
+                <div class="export-buttons">
+                    <button class="btn" id="exportAllBtn">📥 Export All Venues (JSON)</button>
+                    <button class="btn" id="exportAllCSVBtn">📊 Export All Venues (CSV)</button>
+                    <div id="splitButtons" style="display: contents; width: 100%;">
+                        <button class="btn btn-secondary" id="export1Btn">1️⃣ Export 1 Visit CSV</button>
+                        <button class="btn btn-secondary" id="export24Btn">2️⃣ Export 2-4 Visits CSV</button>
+                        <button class="btn btn-secondary" id="export5Btn">5️⃣ Export 5+ Visits CSV</button>
+                    </div>
+                </div>
+
+                <h3 style="margin-top: 30px;">🔍 Sample Venues (Top 10 by visits)</h3>
+                <div class="venue-preview" id="venuePreview"></div>
+            </div>
+        </div>
+    </div>
+
+    <py-script>
+import sys
+
+sys.path.insert(0, "/")
+
+import csv
+import html
+import io
+import json
+
+from js import URL, Blob, FileReader, console, document, window
+from pyodide.ffi import create_proxy, to_js
+
+from untappd_parser import UntappdParser
+
+
+class AppState:
+    def __init__(self):
+        self.parser = None
+        self.processed_venues = None
+        self.cleaned_data = None
+
+    def reset(self):
+        self.parser = None
+        self.processed_venues = None
+        self.cleaned_data = None
+
+    def has_data(self):
+        return self.cleaned_data is not None
+
+
+app_state = AppState()
+
+
+def show_alert(message, alert_type="info"):
+    alerts_div = document.getElementById("alerts")
+    alerts_div.innerHTML = f'<div class="alert alert-{alert_type}">{message}</div>'
+    window.setTimeout(lambda: setattr(alerts_div, "innerHTML", ""), 5000)
+
+
+def process_file(file_content):
+    try:
+        data = json.loads(file_content)
+
+        if not isinstance(data, list):
+            raise ValueError("Data must be an array of check-ins")
+        if len(data) == 0:
+            raise ValueError("No check-ins found in file")
+
+        required_fields = ["venue_name", "venue_lat", "venue_lng", "created_at"]
+        sample_item = data[0]
+        missing_fields = [field for field in required_fields if field not in sample_item]
+        if missing_fields:
+            raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
+
+        human_keys = document.getElementById("humanKeys").checked
+        strip_backend = document.getElementById("stripBackend").checked
+        fancy_dates = document.getElementById("fancyDates").checked
+
+        app_state.parser = UntappdParser(data=data)
+        app_state.processed_venues = app_state.parser.get_unique_entries("venue")
+        app_state.cleaned_data = app_state.parser.clean_data(
+            app_state.processed_venues,
+            strip_backend=strip_backend,
+            fancy_dates=fancy_dates,
+            human_keys=human_keys,
+        )
+
+        update_results()
+
+        document.getElementById("uploadArea").style.display = "none"
+        document.getElementById("processingOptions").style.display = "none"
+
+        document.getElementById("results").classList.add("active")
+        document.getElementById("loading").classList.remove("active")
+
+        show_alert(f"Successfully processed {len(data)} check-ins!", "success")
+
+    except Exception as e:
+        app_state.reset()
+        document.getElementById("loading").classList.remove("active")
+        show_alert(f"Error: {str(e)}", "error")
+        console.error(f"Processing error: {str(e)}")
+
+
+def escape_html(text):
+    if text is None:
+        return ""
+    return html.escape(str(text), quote=True)
+
+
+def update_results():
+    if not app_state.has_data():
+        return
+
+    stats = app_state.parser.get_stats()
+
+    document.getElementById("totalCheckins").textContent = f"{stats['total_checkins']:,}"
+    document.getElementById("uniqueVenues").textContent = f"{stats['unique_venues']:,}"
+    document.getElementById("duplicates").textContent = f"{stats['duplicates']:,}"
+
+    split_by_visits = document.getElementById("splitByVisits").checked
+    split_buttons = document.getElementById("splitButtons")
+    if split_by_visits:
+        split_buttons.style.display = "contents"
+        distribution = app_state.parser.get_visit_distribution(app_state.cleaned_data)
+        document.getElementById("singleVisit").textContent = f"{len(distribution['1_visit']):,}"
+        document.getElementById("twoToFour").textContent = f"{len(distribution['2-4_visits']):,}"
+        document.getElementById("fivePlus").textContent = f"{len(distribution['5+_visits']):,}"
+        document.getElementById("singleVisit").parentElement.parentElement.style.display = "block"
+        document.getElementById("twoToFour").parentElement.parentElement.style.display = "block"
+        document.getElementById("fivePlus").parentElement.parentElement.style.display = "block"
+    else:
+        split_buttons.style.display = "none"
+        document.getElementById("singleVisit").parentElement.parentElement.style.display = "none"
+        document.getElementById("twoToFour").parentElement.parentElement.style.display = "none"
+        document.getElementById("fivePlus").parentElement.parentElement.style.display = "none"
+
+    sorted_venues = sorted(
+        app_state.cleaned_data, key=lambda x: x.get("Total Venue Checkins", 0), reverse=True
+    )
+    top_10 = sorted_venues[:10]
+
+    preview_html = ""
+    for venue in top_10:
+        visits = venue.get("Total Venue Checkins", 0)
+        badge_class = (
+            "badge-primary" if visits == 1 else "badge-warning" if visits <= 4 else "badge-success"
+        )
+
+        venue_name = escape_html(venue.get("Venue Name", "(No venue)"))
+        lat = venue.get("Venue Lat")
+        lng = venue.get("Venue Lng")
+
+        if lat is not None and lng is not None:
+            try:
+                location = f"{float(lat):.4f}, {float(lng):.4f}"
+            except (ValueError, TypeError):
+                location = "Invalid coordinates"
+        else:
+            location = "No location"
+
+        first_checkin = escape_html(venue.get("First Check-In", "N/A"))
+        last_checkin = escape_html(venue.get("Last Check-In", ""))
+
+        preview_html += f"""
+        <div class="venue-item">
+            <div class="venue-name">
+                {venue_name}
+                <span class="badge {badge_class}">{visits} visits</span>
+            </div>
+            <div class="venue-details">
+                📍 {location}<br>
+                🗓️ First: {first_checkin}
+                {f"<br>🗓️ Last: {last_checkin}" if last_checkin else ""}
+            </div>
+        </div>
+        """
+
+    document.getElementById("venuePreview").innerHTML = preview_html
+
+
+def data_to_csv(data):
+    if not data:
+        return ""
+
+    try:
+        output = io.StringIO()
+        fieldnames = list(data[0].keys()) if data else []
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(data)
+        return output.getvalue()
+    except Exception as e:
+        console.error(f"CSV generation error: {str(e)}")
+        show_alert("Error generating CSV file", "error")
+        return ""
+
+
+def download_file(content, filename, mime_type="text/plain"):
+    blob = Blob.new([content], {"type": mime_type})
+    url = URL.createObjectURL(blob)
+
+    link = document.createElement("a")
+    link.href = url
+    link.download = filename
+    link.click()
+
+    URL.revokeObjectURL(url)
+
+
+def export_all(event):
+    if app_state.has_data():
+        content = json.dumps(app_state.cleaned_data, indent=2)
+        download_file(content, "venues_all.json", "application/json")
+
+
+def export_all_csv(event):
+    if app_state.has_data():
+        csv_content = data_to_csv(app_state.cleaned_data)
+        download_file(csv_content, "venues_all.csv", "text/csv")
+
+
+def export_1_visit(event):
+    if not app_state.has_data():
+        return
+    distribution = app_state.parser.get_visit_distribution(app_state.cleaned_data)
+    data = distribution["1_visit"]
+    if data:
+        csv_content = data_to_csv(data)
+        download_file(csv_content, "venues_1_visit.csv", "text/csv")
+        show_alert(f"Exported {len(data)} venues with 1 visit", "success")
+    else:
+        show_alert("No venues with 1 visit to export", "info")
+
+
+def export_2_4_visits(event):
+    if not app_state.has_data():
+        return
+    distribution = app_state.parser.get_visit_distribution(app_state.cleaned_data)
+    data = distribution["2-4_visits"]
+    if data:
+        csv_content = data_to_csv(data)
+        download_file(csv_content, "venues_2-4_visits.csv", "text/csv")
+        show_alert(f"Exported {len(data)} venues with 2-4 visits", "success")
+    else:
+        show_alert("No venues with 2-4 visits to export", "info")
+
+
+def export_5_plus_visits(event):
+    if not app_state.has_data():
+        return
+    distribution = app_state.parser.get_visit_distribution(app_state.cleaned_data)
+    data = distribution["5+_visits"]
+    if data:
+        csv_content = data_to_csv(data)
+        download_file(csv_content, "venues_5+_visits.csv", "text/csv")
+        show_alert(f"Exported {len(data)} venues with 5+ visits", "success")
+    else:
+        show_alert("No venues with 5+ visits to export", "info")
+
+
+def handle_file(event):
+    files = event.target.files
+    if files.length > 0:
+        file = files.item(0)
+
+        if not file.name.endswith(".json"):
+            show_alert("Please upload a JSON file", "error")
+            return
+
+        if file.size > 50 * 1024 * 1024:  # 50MB limit
+            show_alert("File size exceeds 50MB limit", "error")
+            return
+
+        document.getElementById("loading").classList.add("active")
+        document.getElementById("results").classList.remove("active")
+
+        reader = FileReader.new()
+
+        def on_load(e):
+            process_file(e.target.result)
+
+        reader.onload = create_proxy(on_load)
+        reader.readAsText(file)
+
+
+def dragover(e):
+    e.preventDefault()
+    document.getElementById("uploadArea").classList.add("dragover")
+
+
+def dragleave(e):
+    e.preventDefault()
+    document.getElementById("uploadArea").classList.remove("dragover")
+
+
+def drop(e):
+    e.preventDefault()
+    document.getElementById("uploadArea").classList.remove("dragover")
+
+    files = e.dataTransfer.files
+    if files.length > 0:
+        document.getElementById("fileInput").files = files
+        handle_file(e)
+
+
+file_input = document.getElementById("fileInput")
+file_input.addEventListener("change", create_proxy(handle_file))
+
+upload_area = document.getElementById("uploadArea")
+upload_area.onclick = lambda e: file_input.click()
+
+upload_area.addEventListener("dragover", create_proxy(dragover))
+upload_area.addEventListener("dragleave", create_proxy(dragleave))
+upload_area.addEventListener("drop", create_proxy(drop))
+
+document.getElementById("exportAllBtn").addEventListener("click", create_proxy(export_all))
+document.getElementById("exportAllCSVBtn").addEventListener("click", create_proxy(export_all_csv))
+document.getElementById("export1Btn").addEventListener("click", create_proxy(export_1_visit))
+document.getElementById("export24Btn").addEventListener("click", create_proxy(export_2_4_visits))
+document.getElementById("export5Btn").addEventListener("click", create_proxy(export_5_plus_visits))
+
+
+def on_split_change(event):
+    if app_state.has_data():
+        update_results()
+
+
+def reset_for_new_file():
+    app_state.reset()
+    document.getElementById("uploadArea").style.display = "block"
+    document.getElementById("processingOptions").style.display = "block"
+    document.getElementById("results").classList.remove("active")
+    document.getElementById("fileInput").value = ""
+    document.getElementById("alerts").innerHTML = ""
+
+
+window.resetForNewFile = create_proxy(reset_for_new_file)
+
+document.getElementById("splitByVisits").addEventListener("change", create_proxy(on_split_change))
+
+document.getElementById("pyscript-loading-message").classList.add("hidden")
+document.getElementById("main-content").classList.remove("hidden")
+
+console.log("PyScript initialized - using untappd_parser package!")
+    </py-script>
+</body>
+</html>

@@ -5,35 +5,55 @@
 
 There are also additional parsing options detailed below. I use this to generate the [beer map](https://claydugo.com/beermap/) on my website. So this has become mostly tailored towards that.
 
+## Installation
+
+```bash
+pip install -e .
+```
+
 ## Usage
 
-###### To sort by unique beers using their BeerID (bid)
-Run `python3 untappd.py <UNTAPPD-DATA>.json`
+### Command Line Interface
 
-###### To sort by a different key
-List of keys:
+#### Basic usage - find unique venues (default)
+```bash
+untappd-parser <UNTAPPD-DATA>.json
+```
 
-`'brewery_name', 'venue_name', 'beer_type', 'photo_url'`
+#### Sort by a different key
+Available keys: `brewery_name`, `venue`, `beer_type`, `photo_url`, `bid`
 
-Adding additional keys will be trivial for you, but these made the most sense to include.
+```bash
+untappd-parser <UNTAPPD-DATA>.json --key brewery_name
+```
 
-Run `python3 untappd.py <UNTAPPD-DATA>.json --key <key_name>`
+#### Split venues by visit frequency (1, 2-4, 5+ visits)
+```bash
+untappd-parser <UNTAPPD-DATA>.json --split-by-visits
+```
 
-![output](scr/untappd-uniques-cl.png)
+This creates 3 separate CSV files:
+- `*_1_visit.csv` - venues with exactly 1 visit
+- `*_2-4_visits.csv` - venues with 2-4 visits
+- `*_5+_visits.csv` - venues with 5 or more visits
 
 ##### Additional Flags
 
-`--no_human_keys` will stop the key conversions
+- `--no-human-keys` - Keep original snake_case keys (e.g. `venue_name` instead of `Venue Name`)
+- `--no-strip-backend` - Keep all keys from the original JSON file
+- `--no-fancy-dates` - Keep dates in `YYYY-MM-DD HH:MM:SS` format instead of readable format
 
-E.g. `venue_name -> Venue Name`
+### Browser Interface (No installation required!)
 
+Open `untappd.html` in your browser to use the parser without installing Python:
 
-`--no_strip_backend` will keep all keys included in the json file
-
-I current only keep the ones at the top of `untappd.py` by default.
-
-
-`--no_fancy_data_format` will keep the `created_at` key in the `2022-01-01 23:59:59` format.
+1. **Serve the file**
+   ```bash
+   python3 -m http.server 8080
+   ```
+2. **Open in browser**: http://localhost:8080/untappd.html
+3. **Drag and drop** your Untappd JSON file
+4. **Download** the processed CSVs with visit distribution
 
 ## License
 MIT
