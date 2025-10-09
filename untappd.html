@@ -1,133 +1,149 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Untappd Data Parser</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://pyscript.net/releases/2025.8.1/core.css">
-    <script type="module" src="https://pyscript.net/releases/2025.8.1/core.js"></script>
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>Untappd Data Parser</title>
+		<link rel="stylesheet" href="style.css">
+		<link rel="stylesheet" href="https://pyscript.net/releases/2025.8.1/core.css">
+		<script type="module" src="https://pyscript.net/releases/2025.8.1/core.js"></script>
 
-    <py-config>
-        [[fetch]]
-        from = "./src"
-        to_folder = "/"
-        files = ["untappd_parser/__init__.py", "untappd_parser/parser.py", "untappd_parser/web.py"]
-    </py-config>
-</head>
-<body>
-    <div class="container">
-        <h1>🍺 Untappd Data Parser</h1>
-        <p class="subtitle">Analyze your Untappd check-in data</p>
+		<!-- biome-ignore format: TOML config requires specific formatting -->
+		<py-config>
+[[fetch]]
+from = "./src"
+to_folder = "/"
+files = ["untappd_parser/__init__.py", "untappd_parser/parser.py", "untappd_parser/web.py"]
+		</py-config>
+	</head>
+	<body>
+		<div class="container">
+			<h1>🍺 Untappd Data Parser</h1>
+			<p class="subtitle">Analyze your Untappd check-in data</p>
 
-        <div id="pyscript-loading-message">
-            <div class="spinner"></div>
-            <p>Loading Python environment...</p>
-        </div>
+			<div id="pyscript-loading-message">
+				<div class="spinner"></div>
+				<p>Loading Python environment...</p>
+			</div>
 
-        <div id="main-content" class="hidden">
-            <div class="upload-area" id="uploadArea">
-                <div class="upload-icon">📁</div>
-                <p><strong>Click to upload or drag & drop your JSON file</strong></p>
-                <p style="margin-top: 10px; color: #999;">Maximum file size: 50MB</p>
-                <input type="file" id="fileInput" accept=".json,application/json">
-            </div>
+			<div id="main-content" class="hidden">
+				<div class="upload-area" id="uploadArea">
+					<div class="upload-icon">📁</div>
+					<p>
+						<strong>Click to upload or drag & drop your JSON file</strong>
+					</p>
+					<p style="margin-top: 10px; color: #999;">Maximum file size: 50MB</p>
+					<input type="file" id="fileInput" accept=".json,application/json">
+				</div>
 
-            <div id="processingOptions" style="background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; margin-bottom: 20px;">
-                <h3 style="margin-bottom: 15px; color: #333;">Processing Options</h3>
-                <div style="display: grid; gap: 10px;">
-                    <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="humanKeys" checked style="margin-right: 10px;">
-                        <span>Convert to human-readable keys (venue_name → Venue Name)</span>
-                    </label>
-                    <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="stripBackend" checked style="margin-right: 10px;">
-                        <span>Remove backend-only keys (keep essential data only)</span>
-                    </label>
-                    <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="fancyDates" checked style="margin-right: 10px;">
-                        <span>Format dates nicely (January 1, 2024 at 5:00PM)</span>
-                    </label>
-                    <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="splitByVisits" checked style="margin-right: 10px;">
-                        <span>Create separate CSVs by visit count (1, 2-4, 5+)</span>
-                    </label>
-                </div>
-            </div>
+				<div
+					id="processingOptions"
+					style="background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; margin-bottom: 20px;"
+				>
+					<h3 style="margin-bottom: 15px; color: #333;">Processing Options</h3>
+					<div style="display: grid; gap: 10px;">
+						<label style="display: flex; align-items: center; cursor: pointer;">
+							<input type="checkbox" id="humanKeys" checked style="margin-right: 10px;">
+							<span>Convert to human-readable keys (venue_name → Venue Name)</span>
+						</label>
+						<label style="display: flex; align-items: center; cursor: pointer;">
+							<input type="checkbox" id="stripBackend" checked style="margin-right: 10px;">
+							<span>Remove backend-only keys (keep essential data only)</span>
+						</label>
+						<label style="display: flex; align-items: center; cursor: pointer;">
+							<input type="checkbox" id="fancyDates" checked style="margin-right: 10px;">
+							<span>Format dates nicely (January 1, 2024 at 5:00PM)</span>
+						</label>
+						<label style="display: flex; align-items: center; cursor: pointer;">
+							<input type="checkbox" id="splitByVisits" checked style="margin-right: 10px;">
+							<span>Create separate CSVs by visit count (1, 2-4, 5+)</span>
+						</label>
+					</div>
+				</div>
 
-            <div class="loading" id="loading">
-                <div class="spinner"></div>
-                <p>Processing your data...</p>
-            </div>
+				<div class="loading" id="loading">
+					<div class="spinner"></div>
+					<p>Processing your data...</p>
+				</div>
 
-            <div id="alerts"></div>
+				<div id="alerts"></div>
 
-            <div class="results" id="results">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2 style="margin: 0;">📊 Analysis Results</h2>
-                    <button class="btn btn-secondary" onclick="resetForNewFile()">📁 Process Another File</button>
-                </div>
+				<div class="results" id="results">
+					<div
+						style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;"
+					>
+						<h2 style="margin: 0;">📊 Analysis Results</h2>
+						<button class="btn btn-secondary" onclick="resetForNewFile()">
+							📁 Process Another File
+						</button>
+					</div>
 
-                <div class="stats">
-                    <div class="stat-card">
-                        <div class="stat-value" id="totalCheckins">-</div>
-                        <div class="stat-label">Total Check-ins</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="uniqueVenues">-</div>
-                        <div class="stat-label">Unique Venues</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="duplicates">-</div>
-                        <div class="stat-label">Duplicate Check-ins</div>
-                    </div>
-                </div>
+					<div class="stats">
+						<div class="stat-card">
+							<div class="stat-value" id="totalCheckins">-</div>
+							<div class="stat-label">Total Check-ins</div>
+						</div>
+						<div class="stat-card">
+							<div class="stat-value" id="uniqueVenues">-</div>
+							<div class="stat-label">Unique Venues</div>
+						</div>
+						<div class="stat-card">
+							<div class="stat-value" id="duplicates">-</div>
+							<div class="stat-label">Duplicate Check-ins</div>
+						</div>
+					</div>
 
-                <h3>🏪 Venue Distribution</h3>
-                <div class="stats">
-                    <div class="stat-card">
-                        <div class="stat-value" id="singleVisit">-</div>
-                        <div class="stat-label">1 Visit</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="twoToFour">-</div>
-                        <div class="stat-label">2-4 Visits</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="fivePlus">-</div>
-                        <div class="stat-label">5+ Visits</div>
-                    </div>
-                </div>
+					<h3>🏪 Venue Distribution</h3>
+					<div class="stats">
+						<div class="stat-card">
+							<div class="stat-value" id="singleVisit">-</div>
+							<div class="stat-label">1 Visit</div>
+						</div>
+						<div class="stat-card">
+							<div class="stat-value" id="twoToFour">-</div>
+							<div class="stat-label">2-4 Visits</div>
+						</div>
+						<div class="stat-card">
+							<div class="stat-value" id="fivePlus">-</div>
+							<div class="stat-label">5+ Visits</div>
+						</div>
+					</div>
 
-                <div class="export-buttons">
-                    <button class="btn" id="exportAllBtn">📥 Export All Venues (JSON)</button>
-                    <button class="btn" id="exportAllCSVBtn">📊 Export All Venues (CSV)</button>
-                    <div id="splitButtons" style="display: contents; width: 100%;">
-                        <button class="btn btn-secondary" id="export1Btn">1️⃣ Export 1 Visit CSV</button>
-                        <button class="btn btn-secondary" id="export24Btn">2️⃣ Export 2-4 Visits CSV</button>
-                        <button class="btn btn-secondary" id="export5Btn">5️⃣ Export 5+ Visits CSV</button>
-                    </div>
-                </div>
+					<div class="export-buttons">
+						<button class="btn" id="exportAllBtn">📥 Export All Venues (JSON)</button>
+						<button class="btn" id="exportAllCSVBtn">📊 Export All Venues (CSV)</button>
+						<div id="splitButtons" style="display: contents; width: 100%;">
+							<button class="btn btn-secondary" id="export1Btn">1️⃣ Export 1 Visit CSV</button>
+							<button class="btn btn-secondary" id="export24Btn">2️⃣ Export 2-4 Visits CSV</button>
+							<button class="btn btn-secondary" id="export5Btn">5️⃣ Export 5+ Visits CSV</button>
+						</div>
+					</div>
 
-                <h3 style="margin-top: 30px;">🔍 Sample Venues (Top 10 by visits)</h3>
-                <div class="venue-preview" id="venuePreview"></div>
-            </div>
-        </div>
-    </div>
+					<h3 style="margin-top: 30px;">🔍 Sample Venues (Top 10 by visits)</h3>
+					<div class="venue-preview" id="venuePreview"></div>
+				</div>
+			</div>
+		</div>
 
-    <py-script>
+		<!-- biome-ignore format: Python code requires no leading indentation -->
+		<py-script>
 import sys
 sys.path.insert(0, "/")
-
 from untappd_parser.web import init_app
-
 init_app()
-    </py-script>
+		</py-script>
 
-    <a href="https://github.com/claydugo/untappd-data-parser" target="_blank" class="github-link" title="View on GitHub">
-        <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-        </svg>
-    </a>
-</body>
+		<a
+			href="https://github.com/claydugo/untappd-data-parser"
+			target="_blank"
+			class="github-link"
+			title="View on GitHub"
+		>
+			<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+				<path
+					d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+				/>
+			</svg>
+		</a>
+	</body>
 </html>
