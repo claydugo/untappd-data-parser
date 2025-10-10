@@ -1,5 +1,9 @@
 .claude/
 
+# Node
+node_modules/
+
+# Python
 __pycache__/
 *.egg-info/
 
@@ -10,5 +14,10 @@ env/
 
 .DS_Store
 
+# Ignore data files but allow config files
 *.json
+!package.json
+!package-lock.json
+!.stylelintrc.json
+!biome.json
 *.csv

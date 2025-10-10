@@ -32,6 +32,7 @@ untappd-parser = "untappd_parser.cli:main"
 [project.optional-dependencies]
 dev = [
     "ruff>=0.1.0",
+    "python-minifier>=3.0.0",
 ]
 
 [tool.setuptools.packages.find]

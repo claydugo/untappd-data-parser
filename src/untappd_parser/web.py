@@ -4,7 +4,7 @@ import io
 import json
 
 from js import URL, Blob, FileReader, console, document, window
-from pyodide.ffi import create_proxy, to_js
+from pyodide.ffi import create_proxy
 
 from untappd_parser import UntappdParser
 
@@ -99,7 +99,7 @@ def process_file(file_content):
         update_results()
 
         document.getElementById("uploadArea").style.display = "none"
-        document.getElementById("processingOptions").style.display = "none"
+        document.getElementById("processing-options").style.display = "none"
 
         document.getElementById("results").classList.add("active")
         document.getElementById("loading").classList.remove("active")
@@ -124,7 +124,7 @@ def update_results():
     document.getElementById("duplicates").textContent = f"{stats['duplicates']:,}"
 
     split_by_visits = document.getElementById("splitByVisits").checked
-    split_buttons = document.getElementById("splitButtons")
+    split_buttons = document.getElementById("split-buttons")
     if split_by_visits:
         split_buttons.style.display = "contents"
         distribution = app_state.parser.get_visit_distribution(app_state.cleaned_data)
@@ -288,7 +288,7 @@ def on_split_change(event):
 def reset_for_new_file():
     app_state.reset()
     document.getElementById("uploadArea").style.display = "block"
-    document.getElementById("processingOptions").style.display = "block"
+    document.getElementById("processing-options").style.display = "block"
     document.getElementById("results").classList.remove("active")
     document.getElementById("fileInput").value = ""
     document.getElementById("alerts").innerHTML = ""

@@ -55,5 +55,36 @@ Open `untappd.html` in your browser to use the parser without installing Python:
 3. **Drag and drop** your Untappd JSON file
 4. **Download** the processed CSVs with visit distribution
 
+## Development
+
+### Building the Minified Python Bundle
+
+The browser interface uses a minified Python bundle (`src/untappd_parser_bundle.py`) generated from the source files. This bundle is automatically rebuilt when you commit changes to the source files via a pre-commit hook.
+
+#### Manual Build
+
+1. **Install dev dependencies**
+   ```bash
+   pip install -e ".[dev]"
+   # or using npm
+   npm run build:setup
+   ```
+
+2. **Build the bundle**
+   ```bash
+   npm run build
+   # or directly
+   python3 build.py
+   ```
+
+### Code Quality
+
+Run linters and formatters:
+
+```bash
+npm run lint
+npm run format
+```
+
 ## License
 MIT

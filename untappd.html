@@ -4,16 +4,23 @@
 		<meta charset="UTF-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<title>Untappd Data Parser</title>
+		<link rel="preconnect" href="https://pyscript.net">
+		<link rel="preconnect" href="https://cdn.jsdelivr.net">
+		<link rel="dns-prefetch" href="https://pyscript.net">
+		<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+		<link rel="modulepreload" href="https://pyscript.net/releases/2025.8.1/core.js">
+		<link rel="preload" href="https://pyscript.net/releases/2025.8.1/core.css" as="style">
 		<link rel="stylesheet" href="style.css">
 		<link rel="stylesheet" href="https://pyscript.net/releases/2025.8.1/core.css">
 		<script type="module" src="https://pyscript.net/releases/2025.8.1/core.js"></script>
 
 		<!-- biome-ignore format: TOML config requires specific formatting -->
 		<py-config>
+
 [[fetch]]
 from = "./src"
 to_folder = "/"
-files = ["untappd_parser/__init__.py", "untappd_parser/parser.py", "untappd_parser/web.py"]
+files = ["untappd_parser_bundle.py"]
 		</py-config>
 	</head>
 	<body>
@@ -32,30 +39,27 @@ files = ["untappd_parser/__init__.py", "untappd_parser/parser.py", "untappd_pars
 					<p>
 						<strong>Click to upload or drag & drop your JSON file</strong>
 					</p>
-					<p style="margin-top: 10px; color: #999;">Maximum file size: 50MB</p>
+					<p class="file-size-note">Maximum file size: 50MB</p>
 					<input type="file" id="fileInput" accept=".json,application/json">
 				</div>
 
-				<div
-					id="processingOptions"
-					style="background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; margin-bottom: 20px;"
-				>
-					<h3 style="margin-bottom: 15px; color: #333;">Processing Options</h3>
-					<div style="display: grid; gap: 10px;">
-						<label style="display: flex; align-items: center; cursor: pointer;">
-							<input type="checkbox" id="humanKeys" checked style="margin-right: 10px;">
+				<div id="processing-options">
+					<h3>Processing Options</h3>
+					<div class="options-grid">
+						<label class="checkbox-label">
+							<input type="checkbox" id="humanKeys" checked>
 							<span>Convert to human-readable keys (venue_name → Venue Name)</span>
 						</label>
-						<label style="display: flex; align-items: center; cursor: pointer;">
-							<input type="checkbox" id="stripBackend" checked style="margin-right: 10px;">
+						<label class="checkbox-label">
+							<input type="checkbox" id="stripBackend" checked>
 							<span>Remove backend-only keys (keep essential data only)</span>
 						</label>
-						<label style="display: flex; align-items: center; cursor: pointer;">
-							<input type="checkbox" id="fancyDates" checked style="margin-right: 10px;">
+						<label class="checkbox-label">
+							<input type="checkbox" id="fancyDates" checked>
 							<span>Format dates nicely (January 1, 2024 at 5:00PM)</span>
 						</label>
-						<label style="display: flex; align-items: center; cursor: pointer;">
-							<input type="checkbox" id="splitByVisits" checked style="margin-right: 10px;">
+						<label class="checkbox-label">
+							<input type="checkbox" id="splitByVisits" checked>
 							<span>Create separate CSVs by visit count (1, 2-4, 5+)</span>
 						</label>
 					</div>
@@ -69,10 +73,8 @@ files = ["untappd_parser/__init__.py", "untappd_parser/parser.py", "untappd_pars
 				<div id="alerts"></div>
 
 				<div class="results" id="results">
-					<div
-						style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;"
-					>
-						<h2 style="margin: 0;">📊 Analysis Results</h2>
+					<div class="results-header">
+						<h2>📊 Analysis Results</h2>
 						<button class="btn btn-secondary" onclick="resetForNewFile()">
 							📁 Process Another File
 						</button>
@@ -112,14 +114,14 @@ files = ["untappd_parser/__init__.py", "untappd_parser/parser.py", "untappd_pars
 					<div class="export-buttons">
 						<button class="btn" id="exportAllBtn">📥 Export All Venues (JSON)</button>
 						<button class="btn" id="exportAllCSVBtn">📊 Export All Venues (CSV)</button>
-						<div id="splitButtons" style="display: contents; width: 100%;">
+						<div id="split-buttons">
 							<button class="btn btn-secondary" id="export1Btn">1️⃣ Export 1 Visit CSV</button>
 							<button class="btn btn-secondary" id="export24Btn">2️⃣ Export 2-4 Visits CSV</button>
 							<button class="btn btn-secondary" id="export5Btn">5️⃣ Export 5+ Visits CSV</button>
 						</div>
 					</div>
 
-					<h3 style="margin-top: 30px;">🔍 Sample Venues (Top 10 by visits)</h3>
+					<h3 class="section-heading">🔍 Sample Venues (Top 10 by visits)</h3>
 					<div class="venue-preview" id="venuePreview"></div>
 				</div>
 			</div>
@@ -129,7 +131,7 @@ files = ["untappd_parser/__init__.py", "untappd_parser/parser.py", "untappd_pars
 		<py-script>
 import sys
 sys.path.insert(0, "/")
-from untappd_parser.web import init_app
+from untappd_parser_bundle import init_app
 init_app()
 		</py-script>
 
