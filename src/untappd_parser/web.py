@@ -307,14 +307,22 @@ def init_app():
     upload_area.addEventListener("drop", create_proxy(drop))
 
     document.getElementById("exportAllBtn").addEventListener("click", create_proxy(export_all))
-    document.getElementById("exportAllCSVBtn").addEventListener("click", create_proxy(export_all_csv))
+    document.getElementById("exportAllCSVBtn").addEventListener(
+        "click", create_proxy(export_all_csv)
+    )
     document.getElementById("export1Btn").addEventListener("click", create_proxy(export_1_visit))
-    document.getElementById("export24Btn").addEventListener("click", create_proxy(export_2_4_visits))
-    document.getElementById("export5Btn").addEventListener("click", create_proxy(export_5_plus_visits))
+    document.getElementById("export24Btn").addEventListener(
+        "click", create_proxy(export_2_4_visits)
+    )
+    document.getElementById("export5Btn").addEventListener(
+        "click", create_proxy(export_5_plus_visits)
+    )
 
     window.resetForNewFile = create_proxy(reset_for_new_file)
 
-    document.getElementById("splitByVisits").addEventListener("change", create_proxy(on_split_change))
+    document.getElementById("splitByVisits").addEventListener(
+        "change", create_proxy(on_split_change)
+    )
 
     document.getElementById("pyscript-loading-message").classList.add("hidden")
     document.getElementById("main-content").classList.remove("hidden")

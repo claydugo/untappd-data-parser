@@ -59,9 +59,7 @@ Open `untappd.html` in your browser to use the parser without installing Python:
 
 ### Building the Minified Python Bundle
 
-The browser interface uses a minified Python bundle (`src/untappd_parser_bundle.py`) generated from the source files. This bundle is automatically rebuilt when you commit changes to the source files via a pre-commit hook.
-
-#### Manual Build
+The browser interface uses a minified Python bundle (`src/untappd_parser_bundle.py`) generated from the source files.
 
 1. **Install dev dependencies**
    ```bash
