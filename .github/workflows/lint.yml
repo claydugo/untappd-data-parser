@@ -1,4 +1,4 @@
-name: Ruff
+name: Lint
 
 on:
   push:
@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  ruff:
-    name: Run Ruff
+  lint:
+    name: Run Linters
     runs-on: ubuntu-latest
 
     steps:
@@ -23,8 +23,22 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install ruff
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python dependencies
         run: pip install ruff
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Run Biome
+        run: npx @biomejs/biome ci .
+
+      - name: Run Stylelint
+        run: npx stylelint "**/*.css"
 
       - name: Run Ruff linter
         run: ruff check .
