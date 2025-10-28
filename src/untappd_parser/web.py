@@ -29,8 +29,15 @@ app_state = AppState()
 
 def show_alert(message, alert_type="info"):
     alerts_div = document.getElementById("alerts")
-    alerts_div.innerHTML = f'<div class="alert alert-{alert_type}">{message}</div>'
-    window.setTimeout(lambda: setattr(alerts_div, "innerHTML", ""), 5000)
+    allowed_types = {"info", "success", "error"}
+    alert_class = alert_type if alert_type in allowed_types else "info"
+
+    alert_element = document.createElement("div")
+    alert_element.classList.add("alert", f"alert-{alert_class}")
+    alert_element.textContent = str(message)
+
+    alerts_div.replaceChildren(alert_element)
+    window.setTimeout(lambda: alerts_div.replaceChildren(), 5000)
 
 
 def escape_html(text):
