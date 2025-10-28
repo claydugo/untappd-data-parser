@@ -21,3 +21,7 @@ env/
 !.stylelintrc.json
 !biome.json
 *.csv
+# pixi environments
+.pixi/*
+!.pixi/config.toml
+pixi.lock

@@ -52,7 +52,6 @@ class UntappdParser:
         if key == "venue":
             return self._get_unique_venues()
 
-        # Filter out entries where the key value is None or missing
         return list(
             {entry[key]: entry for entry in self.data if entry.get(key) is not None}.values()
         )
@@ -63,10 +62,17 @@ class UntappdParser:
         venue_dates: defaultdict[VenueLocation, List[str]] = defaultdict(list)
 
         for entry in self.data:
+            venue_name = entry.get("venue_name")
+            venue_lat = entry.get("venue_lat")
+            venue_lng = entry.get("venue_lng")
+
+            if venue_name is None or venue_lat is None or venue_lng is None:
+                continue
+
             venue = VenueLocation(
-                name=entry["venue_name"],
-                latitude=entry["venue_lat"],
-                longitude=entry["venue_lng"],
+                name=venue_name,
+                latitude=venue_lat,
+                longitude=venue_lng,
             )
             venue_checkins[venue] += 1
             venue_data[venue] = entry
@@ -114,17 +120,27 @@ class UntappdParser:
 
     @staticmethod
     def _format_dates(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        def format_date_string(date_str: str) -> str:
-            return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").strftime("%B %d, %Y at %I:%M%p")
+        def format_date_string(date_str: str) -> Optional[str]:
+            try:
+                return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").strftime("%B %d, %Y at %I:%M%p")
+            except (ValueError, TypeError):
+                return None
 
         for entry in data:
-            entry.pop("created_at", None)
+            if first_date := entry.get("first_checkin"):
+                formatted_first = format_date_string(first_date)
+                if formatted_first:
+                    entry.pop("first_checkin", None)
+                    entry["First Checkin"] = formatted_first
 
-            if first_date := entry.pop("first_checkin", None):
-                entry["First Check-in"] = format_date_string(first_date)
+            if last_date := entry.get("last_checkin"):
+                formatted_last = format_date_string(last_date)
+                if formatted_last:
+                    entry.pop("last_checkin", None)
+                    entry["Last Checkin"] = formatted_last
 
-            if last_date := entry.pop("last_checkin", None):
-                entry["Last Check-in"] = format_date_string(last_date)
+            if "First Checkin" in entry or "Last Checkin" in entry:
+                entry.pop("created_at", None)
 
         return data
 
