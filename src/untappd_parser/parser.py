@@ -123,7 +123,9 @@ class UntappdParser:
     def _format_dates(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         def format_date_string(date_str: str) -> Optional[str]:
             try:
-                return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").strftime("%B %d, %Y at %I:%M%p")
+                return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").strftime(
+                    "%B %d, %Y at %I:%M%p"
+                )
             except (ValueError, TypeError):
                 return None
 
