@@ -9,30 +9,29 @@ _Z='results'
 _Y='duplicates'
 _X='Total Venue Checkins'
 _W='utf-8'
-_V='total_venue_checkins'
-_U='venue_lng'
-_T='venue_lat'
-_S='venue_name'
-_R='text/csv'
-_Q='dragover'
-_P='5+_visits'
-_O='2-4_visits'
-_N='1_visit'
-_M='venue'
-_L='last_checkin'
-_K='first_checkin'
+_V='venue_lng'
+_U='venue_lat'
+_T='venue_name'
+_S='text/csv'
+_R='dragover'
+_Q='5+_visits'
+_P='2-4_visits'
+_O='1_visit'
+_N='venue'
+_M='last_checkin'
+_L='first_checkin'
+_K='total_venue_checkins'
 _J='block'
 _I='error'
 _H='success'
 _G=True
-_F='created_at'
-_E='active'
-_D='none'
-_C='uploadArea'
-_B='info'
+_F='active'
+_E='none'
+_D='uploadArea'
+_C='info'
+_B='created_at'
 _A=None
 import csv,json
-from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -42,7 +41,7 @@ class VenueLocation:
 	name:str;latitude:float;longitude:float
 	def __hash__(A):return hash((A.name,A.latitude,A.longitude))
 class UntappdParser:
-	desired_keys={'beer_name','brewery_name','beer_type',_S,_T,_U,_F,_V,_K,_L}
+	desired_keys={'beer_name','brewery_name','beer_type',_T,_U,_V,_B,_K,_L,_M}
 	def __init__(A,data=_A,filename=_A):
 		B=filename
 		if data is not _A:A.data=data
@@ -52,21 +51,24 @@ class UntappdParser:
 		with open(A.filename,'r',encoding=_W)as B:return json.load(B)
 	def get_unique_entries(B,key):
 		A=key
-		if A==_M:return B._get_unique_venues()
+		if A==_N:return B._get_unique_venues()
 		return list({B[A]:B for B in B.data if B.get(A)is not _A}.values())
-	def _get_unique_venues(L):
-		E=defaultdict(int);F={};G=defaultdict(list)
-		for A in L.data:
-			H=A.get(_S);I=A.get(_T);J=A.get(_U)
-			if H is _A or I is _A or J is _A:continue
-			B=VenueLocation(name=H,latitude=I,longitude=J);E[B]+=1;F[B]=A
-			if _F in A:G[B].append(A[_F])
-		K=[]
-		for(B,A)in F.items():
-			D=A.copy();D[_V]=E[B];C=G[B]
-			if C:C.sort();D[_K]=C[0];D[_L]=C[-1]if len(C)>1 else _A
-			K.append(D)
-		return K
+	def _get_unique_venues(K):
+		F='checkin_dates';B={}
+		for A in K.data:
+			G=A.get(_T);H=A.get(_U);I=A.get(_V)
+			if G is _A or H is _A or I is _A:continue
+			C=VenueLocation(name=G,latitude=H,longitude=I)
+			if C not in B:B[C]={**A,_K:1,F:[A.get(_B)]if A.get(_B)else[]}
+			else:
+				B[C][_K]+=1
+				if A.get(_B):B[C][F].append(A[_B])
+		J=[]
+		for(C,E)in B.items():
+			D=E.pop(F,[])
+			if D:D.sort();E[_L]=D[0];E[_M]=D[-1]if len(D)>1 else _A
+			J.append(E)
+		return J
 	def clean_data(B,data,strip_backend=_G,fancy_dates=_G,human_keys=_G):
 		A=data.copy()
 		if strip_backend:A=B._strip_backend_keys(A)
@@ -84,28 +86,28 @@ class UntappdParser:
 			try:return datetime.strptime(date_str,'%Y-%m-%d %H:%M:%S').strftime('%B %d, %Y at %I:%M%p')
 			except(ValueError,TypeError):return
 		for A in data:
-			if(G:=A.get(_K)):
+			if(G:=A.get(_L)):
 				C=B(G)
-				if C:A.pop(_K,_A);A[E]=C
-			if(H:=A.get(_L)):
+				if C:A.pop(_L,_A);A[E]=C
+			if(H:=A.get(_M)):
 				D=B(H)
-				if D:A.pop(_L,_A);A[F]=D
-			if E in A or F in A:A.pop(_F,_A)
+				if D:A.pop(_M,_A);A[F]=D
+			if E in A or F in A:A.pop(_B,_A)
 		return data
 	@staticmethod
 	def _humanize_keys(data):return[{A.replace('_',' ').title():B for(A,B)in A.items()}for A in data]
 	def get_visit_distribution(F,data):
 		C=[];D=[];E=[]
 		for A in data:
-			B=A.get(_X,A.get(_V,0))
+			B=A.get(_X,A.get(_K,0))
 			if B==1:C.append(A)
 			elif 2<=B<=4:D.append(A)
 			elif B>=5:E.append(A)
-		return{_N:C,_O:D,_P:E}
+		return{_O:C,_P:D,_Q:E}
 	def save_files(C,data,base_filename,split_by_visits=False):
 		B=data;A=base_filename
 		with open(f"{A}.json",'w',encoding=_W)as D:json.dump(B,D,indent=2,ensure_ascii=False)
-		if split_by_visits and _M in A:C._save_visit_distribution_csvs(B,A)
+		if split_by_visits and _N in A:C._save_visit_distribution_csvs(B,A)
 		else:C._save_csv(B,f"{A}.csv")
 	def _save_csv(E,data,filename):
 		A=data
@@ -113,10 +115,10 @@ class UntappdParser:
 		C=list(A[0].keys())
 		with open(filename,'w',newline='',encoding=_W)as D:B=csv.DictWriter(D,fieldnames=C);B.writeheader();B.writerows(A)
 	def _save_visit_distribution_csvs(D,data,base_filename):
-		A=base_filename;B=D.get_visit_distribution(data);F=[(B[_N],f"{A}_1_visit.csv",'1 visit'),(B[_O],f"{A}_2-4_visits.csv",'2-4 visits'),(B[_P],f"{A}_5+_visits.csv",'5+ visits')]
+		A=base_filename;B=D.get_visit_distribution(data);F=[(B[_O],f"{A}_1_visit.csv",'1 visit'),(B[_P],f"{A}_2-4_visits.csv",'2-4 visits'),(B[_Q],f"{A}_5+_visits.csv",'5+ visits')]
 		for(C,E,G)in F:
 			if C:D._save_csv(C,E);print(f"  - {G}: {len(C)} venues saved to {E}")
-	def get_stats(A):B=A.get_unique_entries(_M);return{_c:len(A.data),_d:len(B),_Y:len(A.data)-len(B)}
+	def get_stats(A):B=A.get_unique_entries(_N);return{_c:len(A.data),_d:len(B),_Y:len(A.data)-len(B)}
 import csv,html,io,json
 from js import URL,Blob,FileReader,console,document,window
 from pyodide.ffi import create_proxy
@@ -125,7 +127,7 @@ class AppState:
 	def reset(A):A.parser=_A;A.processed_venues=_A;A.cleaned_data=_A
 	def has_data(A):return A.cleaned_data is not _A
 app_state=AppState()
-def show_alert(message,alert_type=_B):B=alert_type;C=document.getElementById(_e);D={_B,_H,_I};E=B if B in D else _B;A=document.createElement('div');A.classList.add('alert',f"alert-{E}");A.textContent=str(message);C.replaceChildren(A);window.setTimeout(lambda:C.replaceChildren(),5000)
+def show_alert(message,alert_type=_C):B=alert_type;C=document.getElementById(_e);D={_C,_H,_I};E=B if B in D else _C;A=document.createElement('div');A.classList.add('alert',f"alert-{E}");A.textContent=str(message);C.replaceChildren(A);window.setTimeout(lambda:C.replaceChildren(),5000)
 def escape_html(text):
 	if text is _A:return''
 	return html.escape(str(text),quote=_G)
@@ -140,16 +142,16 @@ def process_file(file_content):
 		A=json.loads(file_content)
 		if not isinstance(A,list):raise ValueError('Data must be an array of check-ins')
 		if len(A)==0:raise ValueError('No check-ins found in file')
-		D=[_S,_T,_U,_F];E=A[0];B=[A for A in D if A not in E]
+		D=[_T,_U,_V,_B];E=A[0];B=[A for A in D if A not in E]
 		if B:raise ValueError(f"Missing required fields: {", ".join(B)}")
-		F=document.getElementById('humanKeys').checked;G=document.getElementById('stripBackend').checked;H=document.getElementById('fancyDates').checked;app_state.parser=UntappdParser(data=A);app_state.processed_venues=app_state.parser.get_unique_entries(_M);app_state.cleaned_data=app_state.parser.clean_data(app_state.processed_venues,strip_backend=G,fancy_dates=H,human_keys=F);update_results();document.getElementById(_C).style.display=_D;document.getElementById(_f).style.display=_D;document.getElementById(_Z).classList.add(_E);document.getElementById(_a).classList.remove(_E);show_alert(f"Successfully processed {len(A)} check-ins!",_H)
-	except Exception as C:app_state.reset();document.getElementById(_a).classList.remove(_E);show_alert(f"Error: {str(C)}",_I);console.error(f"Processing error: {str(C)}")
+		F=document.getElementById('humanKeys').checked;G=document.getElementById('stripBackend').checked;H=document.getElementById('fancyDates').checked;app_state.parser=UntappdParser(data=A);app_state.processed_venues=app_state.parser.get_unique_entries(_N);app_state.cleaned_data=app_state.parser.clean_data(app_state.processed_venues,strip_backend=G,fancy_dates=H,human_keys=F);update_results();document.getElementById(_D).style.display=_E;document.getElementById(_f).style.display=_E;document.getElementById(_Z).classList.add(_F);document.getElementById(_a).classList.remove(_F);show_alert(f"Successfully processed {len(A)} check-ins!",_H)
+	except Exception as C:app_state.reset();document.getElementById(_a).classList.remove(_F);show_alert(f"Error: {str(C)}",_I);console.error(f"Processing error: {str(C)}")
 def update_results():
 	H='fivePlus';G='twoToFour';F='singleVisit'
 	if not app_state.has_data():return
 	B=app_state.parser.get_stats();document.getElementById('totalCheckins').textContent=f"{B[_c]:,}";document.getElementById('uniqueVenues').textContent=f"{B[_d]:,}";document.getElementById(_Y).textContent=f"{B[_Y]:,}";N=document.getElementById(_g).checked;I=document.getElementById('split-buttons')
-	if N:I.style.display='contents';C=app_state.parser.get_visit_distribution(app_state.cleaned_data);document.getElementById(F).textContent=f"{len(C[_N]):,}";document.getElementById(G).textContent=f"{len(C[_O]):,}";document.getElementById(H).textContent=f"{len(C[_P]):,}";document.getElementById(F).parentElement.parentElement.style.display=_J;document.getElementById(G).parentElement.parentElement.style.display=_J;document.getElementById(H).parentElement.parentElement.style.display=_J
-	else:I.style.display=_D;document.getElementById(F).parentElement.parentElement.style.display=_D;document.getElementById(G).parentElement.parentElement.style.display=_D;document.getElementById(H).parentElement.parentElement.style.display=_D
+	if N:I.style.display='contents';C=app_state.parser.get_visit_distribution(app_state.cleaned_data);document.getElementById(F).textContent=f"{len(C[_O]):,}";document.getElementById(G).textContent=f"{len(C[_P]):,}";document.getElementById(H).textContent=f"{len(C[_Q]):,}";document.getElementById(F).parentElement.parentElement.style.display=_J;document.getElementById(G).parentElement.parentElement.style.display=_J;document.getElementById(H).parentElement.parentElement.style.display=_J
+	else:I.style.display=_E;document.getElementById(F).parentElement.parentElement.style.display=_E;document.getElementById(G).parentElement.parentElement.style.display=_E;document.getElementById(H).parentElement.parentElement.style.display=_E
 	O=sorted(app_state.cleaned_data,key=lambda x:x.get(_X,0),reverse=_G);P=O[:10];J=''
 	for A in P:
 		D=A.get(_X,0);Q='badge-primary'if D==1 else'badge-warning'if D<=4 else'badge-success';R=escape_html(A.get('Venue Name','(No venue)'));K=A.get('Venue Lat');L=A.get('Venue Lng')
@@ -177,34 +179,34 @@ def handle_file(event):
 		A=B.item(0)
 		if not A.name.endswith('.json'):show_alert('Please upload a JSON file',_I);return
 		if A.size>52428800:show_alert('File size exceeds 50MB limit',_I);return
-		document.getElementById(_a).classList.add(_E);document.getElementById(_Z).classList.remove(_E);C=FileReader.new()
+		document.getElementById(_a).classList.add(_F);document.getElementById(_Z).classList.remove(_F);C=FileReader.new()
 		def D(e):process_file(e.target.result)
 		C.onload=create_proxy(D);C.readAsText(A)
-def dragover(e):e.preventDefault();document.getElementById(_C).classList.add(_Q)
-def dragleave(e):e.preventDefault();document.getElementById(_C).classList.remove(_Q)
+def dragover(e):e.preventDefault();document.getElementById(_D).classList.add(_R)
+def dragleave(e):e.preventDefault();document.getElementById(_D).classList.remove(_R)
 def drop(e):
-	e.preventDefault();document.getElementById(_C).classList.remove(_Q);A=e.dataTransfer.files
+	e.preventDefault();document.getElementById(_D).classList.remove(_R);A=e.dataTransfer.files
 	if A.length>0:document.getElementById(_b).files=A;handle_file(e)
 def export_all(event):
 	if app_state.has_data():A=json.dumps(app_state.cleaned_data,indent=2);download_file(A,'venues_all.json','application/json')
 def export_all_csv(event):
-	if app_state.has_data():A=data_to_csv(app_state.cleaned_data);download_file(A,'venues_all.csv',_R)
+	if app_state.has_data():A=data_to_csv(app_state.cleaned_data);download_file(A,'venues_all.csv',_S)
 def export_1_visit(event):
 	if not app_state.has_data():return
-	B=app_state.parser.get_visit_distribution(app_state.cleaned_data);A=B[_N]
-	if A:C=data_to_csv(A);download_file(C,'venues_1_visit.csv',_R);show_alert(f"Exported {len(A)} venues with 1 visit",_H)
-	else:show_alert('No venues with 1 visit to export',_B)
+	B=app_state.parser.get_visit_distribution(app_state.cleaned_data);A=B[_O]
+	if A:C=data_to_csv(A);download_file(C,'venues_1_visit.csv',_S);show_alert(f"Exported {len(A)} venues with 1 visit",_H)
+	else:show_alert('No venues with 1 visit to export',_C)
 def export_2_4_visits(event):
 	if not app_state.has_data():return
-	B=app_state.parser.get_visit_distribution(app_state.cleaned_data);A=B[_O]
-	if A:C=data_to_csv(A);download_file(C,'venues_2-4_visits.csv',_R);show_alert(f"Exported {len(A)} venues with 2-4 visits",_H)
-	else:show_alert('No venues with 2-4 visits to export',_B)
+	B=app_state.parser.get_visit_distribution(app_state.cleaned_data);A=B[_P]
+	if A:C=data_to_csv(A);download_file(C,'venues_2-4_visits.csv',_S);show_alert(f"Exported {len(A)} venues with 2-4 visits",_H)
+	else:show_alert('No venues with 2-4 visits to export',_C)
 def export_5_plus_visits(event):
 	if not app_state.has_data():return
-	B=app_state.parser.get_visit_distribution(app_state.cleaned_data);A=B[_P]
-	if A:C=data_to_csv(A);download_file(C,'venues_5+_visits.csv',_R);show_alert(f"Exported {len(A)} venues with 5+ visits",_H)
-	else:show_alert('No venues with 5+ visits to export',_B)
+	B=app_state.parser.get_visit_distribution(app_state.cleaned_data);A=B[_Q]
+	if A:C=data_to_csv(A);download_file(C,'venues_5+_visits.csv',_S);show_alert(f"Exported {len(A)} venues with 5+ visits",_H)
+	else:show_alert('No venues with 5+ visits to export',_C)
 def on_split_change(event):
 	if app_state.has_data():update_results()
-def reset_for_new_file():app_state.reset();document.getElementById(_C).style.display=_J;document.getElementById(_f).style.display=_J;document.getElementById(_Z).classList.remove(_E);document.getElementById(_b).value='';document.getElementById(_e).innerHTML=''
-def init_app():E='hidden';D='change';A='click';C=document.getElementById(_b);C.addEventListener(D,create_proxy(handle_file));B=document.getElementById(_C);B.onclick=lambda e:C.click();B.addEventListener(_Q,create_proxy(dragover));B.addEventListener('dragleave',create_proxy(dragleave));B.addEventListener('drop',create_proxy(drop));document.getElementById('exportAllBtn').addEventListener(A,create_proxy(export_all));document.getElementById('exportAllCSVBtn').addEventListener(A,create_proxy(export_all_csv));document.getElementById('export1Btn').addEventListener(A,create_proxy(export_1_visit));document.getElementById('export24Btn').addEventListener(A,create_proxy(export_2_4_visits));document.getElementById('export5Btn').addEventListener(A,create_proxy(export_5_plus_visits));window.resetForNewFile=create_proxy(reset_for_new_file);document.getElementById(_g).addEventListener(D,create_proxy(on_split_change));document.getElementById('pyscript-loading-message').classList.add(E);document.getElementById('main-content').classList.remove(E);console.log('PyScript initialized - using untappd_parser package!')
+def reset_for_new_file():app_state.reset();document.getElementById(_D).style.display=_J;document.getElementById(_f).style.display=_J;document.getElementById(_Z).classList.remove(_F);document.getElementById(_b).value='';document.getElementById(_e).innerHTML=''
+def init_app():E='hidden';D='change';A='click';C=document.getElementById(_b);C.addEventListener(D,create_proxy(handle_file));B=document.getElementById(_D);B.onclick=lambda e:C.click();B.addEventListener(_R,create_proxy(dragover));B.addEventListener('dragleave',create_proxy(dragleave));B.addEventListener('drop',create_proxy(drop));document.getElementById('exportAllBtn').addEventListener(A,create_proxy(export_all));document.getElementById('exportAllCSVBtn').addEventListener(A,create_proxy(export_all_csv));document.getElementById('export1Btn').addEventListener(A,create_proxy(export_1_visit));document.getElementById('export24Btn').addEventListener(A,create_proxy(export_2_4_visits));document.getElementById('export5Btn').addEventListener(A,create_proxy(export_5_plus_visits));window.resetForNewFile=create_proxy(reset_for_new_file);document.getElementById(_g).addEventListener(D,create_proxy(on_split_change));document.getElementById('pyscript-loading-message').classList.add(E);document.getElementById('main-content').classList.remove(E);console.log('PyScript initialized - using untappd_parser package!')

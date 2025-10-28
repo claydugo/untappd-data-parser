@@ -1,6 +1,5 @@
 import csv
 import json
-from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -57,10 +56,7 @@ class UntappdParser:
         )
 
     def _get_unique_venues(self) -> List[Dict[str, Any]]:
-        venue_checkins: defaultdict[VenueLocation, int] = defaultdict(int)
-        venue_data: Dict[VenueLocation, Dict[str, Any]] = {}
-        venue_dates: defaultdict[VenueLocation, List[str]] = defaultdict(list)
-
+        venue_info: Dict[VenueLocation, Dict[str, Any]] = {}
         for entry in self.data:
             venue_name = entry.get("venue_name")
             venue_lat = entry.get("venue_lat")
@@ -74,23 +70,28 @@ class UntappdParser:
                 latitude=venue_lat,
                 longitude=venue_lng,
             )
-            venue_checkins[venue] += 1
-            venue_data[venue] = entry
-            if "created_at" in entry:
-                venue_dates[venue].append(entry["created_at"])
+
+            if venue not in venue_info:
+                venue_info[venue] = {
+                    **entry,
+                    "total_venue_checkins": 1,
+                    "checkin_dates": [entry.get("created_at")] if entry.get("created_at") else [],
+                }
+            else:
+                venue_info[venue]["total_venue_checkins"] += 1
+                if entry.get("created_at"):
+                    venue_info[venue]["checkin_dates"].append(entry["created_at"])
 
         result = []
-        for venue, entry in venue_data.items():
-            entry_copy = entry.copy()
-            entry_copy["total_venue_checkins"] = venue_checkins[venue]
+        for venue, info in venue_info.items():
+            dates = info.pop("checkin_dates", [])
 
-            dates = venue_dates[venue]
             if dates:
                 dates.sort()
-                entry_copy["first_checkin"] = dates[0]
-                entry_copy["last_checkin"] = dates[-1] if len(dates) > 1 else None
+                info["first_checkin"] = dates[0]
+                info["last_checkin"] = dates[-1] if len(dates) > 1 else None
 
-            result.append(entry_copy)
+            result.append(info)
 
         return result
 
