@@ -100,7 +100,7 @@
 		"nanoid": "^3.3.11",
 		"normalize-path": "^3.0.0",
 		"parent-module": "^1.0.1",
-		"parse-json": "^5.2.0",
+		"parse-json": "^8.3.0",
 		"path-type": "^4.0.0",
 		"picocolors": "^1.1.1",
 		"picomatch": "^2.3.1",
