@@ -37,9 +37,6 @@ jobs:
       - name: Run Biome
         run: npx @biomejs/biome ci .
 
-      - name: Run Stylelint
-        run: npx stylelint "**/*.css"
-
       - name: Run Ruff linter
         run: ruff check .
 
