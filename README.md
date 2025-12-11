@@ -1,4 +1,5 @@
 # untappd-data-cleaner
+
 [![License](https://img.shields.io/github/license/mashape/apistatus.svg)](https://github.com/claydugo/untappd-data-cleaner/blob/master/LICENSE)
 
 [Untappd](https://untappd.com/) allows you to download your checkin data in JSON and CSV formats (if you are a [supporter](https://untappd.com/supporter)). This is great, however they do not have an option to download the data of just your 'unique' checkins. This script will take the json file you downloaded from untappd and create both json and csv files with only your last checkins of each beer.
@@ -16,11 +17,13 @@ pip install -e .
 ### Command Line Interface
 
 #### Basic usage - find unique venues (default)
+
 ```bash
 untappd-parser <UNTAPPD-DATA>.json
 ```
 
 #### Sort by a different key
+
 Available keys: `brewery_name`, `venue`, `beer_type`, `photo_url`, `bid`
 
 ```bash
@@ -28,11 +31,13 @@ untappd-parser <UNTAPPD-DATA>.json --key brewery_name
 ```
 
 #### Split venues by visit frequency (1, 2-4, 5+ visits)
+
 ```bash
 untappd-parser <UNTAPPD-DATA>.json --split-by-visits
 ```
 
 This creates 3 separate CSV files:
+
 - `*_1_visit.csv` - venues with exactly 1 visit
 - `*_2-4_visits.csv` - venues with 2-4 visits
 - `*_5+_visits.csv` - venues with 5 or more visits
@@ -62,6 +67,7 @@ Open `untappd.html` in your browser to use the parser without installing Python:
 The browser interface uses a minified Python bundle (`src/untappd_parser_bundle.py`) generated from the source files.
 
 1. **Install dev dependencies**
+
    ```bash
    pip install -e ".[dev]"
    # or using npm
@@ -85,4 +91,5 @@ npm run format
 ```
 
 ## License
+
 MIT

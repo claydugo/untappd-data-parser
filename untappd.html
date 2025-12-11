@@ -1,25 +1,25 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 	<head>
-		<meta charset="UTF-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>Untappd Data Parser</title>
 		<meta
 			http-equiv="Content-Security-Policy"
 			content="default-src 'self' https://pyscript.net https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pyscript.net https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://pyscript.net https://cdn.jsdelivr.net; connect-src 'self' https://pyscript.net https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data: https://pyscript.net https://cdn.jsdelivr.net; worker-src 'self' blob: https://pyscript.net https://cdn.jsdelivr.net;"
-		>
-		<link rel="preconnect" href="https://pyscript.net">
-		<link rel="preconnect" href="https://cdn.jsdelivr.net">
-		<link rel="dns-prefetch" href="https://pyscript.net">
-		<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-		<link rel="modulepreload" href="https://pyscript.net/releases/2025.8.1/core.js">
-		<link rel="preload" href="https://pyscript.net/releases/2025.8.1/core.css" as="style">
-		<link rel="stylesheet" href="style.css">
-		<link rel="stylesheet" href="https://pyscript.net/releases/2025.8.1/core.css">
+		/>
+		<link rel="preconnect" href="https://pyscript.net" />
+		<link rel="preconnect" href="https://cdn.jsdelivr.net" />
+		<link rel="dns-prefetch" href="https://pyscript.net" />
+		<link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+		<link rel="modulepreload" href="https://pyscript.net/releases/2025.8.1/core.js" />
+		<link rel="preload" href="https://pyscript.net/releases/2025.8.1/core.css" as="style" />
+		<link rel="stylesheet" href="style.css" />
+		<link rel="stylesheet" href="https://pyscript.net/releases/2025.8.1/core.css" />
 		<script type="module" src="https://pyscript.net/releases/2025.8.1/core.js"></script>
 	</head>
 	<body>
-		<!-- biome-ignore format: TOML config requires specific formatting -->
+		<!-- prettier-ignore -->
 		<py-config>
 [[fetch]]
 from = "./src"
@@ -53,26 +53,26 @@ files = ["untappd_parser_bundle.py"]
 						<strong>Click to upload or drag & drop your JSON file</strong>
 					</p>
 					<p class="file-size-note">Maximum file size: 50MB</p>
-					<input type="file" id="fileInput" accept=".json,application/json">
+					<input type="file" id="fileInput" accept=".json,application/json" />
 				</div>
 
 				<div id="processing-options">
 					<h3>Processing Options</h3>
 					<div class="options-grid">
 						<label class="checkbox-label">
-							<input type="checkbox" id="humanKeys" checked>
+							<input type="checkbox" id="humanKeys" checked />
 							<span>Convert to human-readable keys (venue_name → Venue Name)</span>
 						</label>
 						<label class="checkbox-label">
-							<input type="checkbox" id="stripBackend" checked>
+							<input type="checkbox" id="stripBackend" checked />
 							<span>Remove backend-only keys (keep essential data only)</span>
 						</label>
 						<label class="checkbox-label">
-							<input type="checkbox" id="fancyDates" checked>
+							<input type="checkbox" id="fancyDates" checked />
 							<span>Format dates nicely (January 1, 2024 at 5:00PM)</span>
 						</label>
 						<label class="checkbox-label">
-							<input type="checkbox" id="splitByVisits" checked>
+							<input type="checkbox" id="splitByVisits" checked />
 							<span>Create separate CSVs by visit count (1, 2-4, 5+)</span>
 						</label>
 					</div>
@@ -140,7 +140,7 @@ files = ["untappd_parser_bundle.py"]
 			</div>
 		</div>
 
-		<!-- biome-ignore format: Python code requires no leading indentation -->
+		<!-- prettier-ignore -->
 		<py-script>
 import sys
 sys.path.insert(0, "/")
