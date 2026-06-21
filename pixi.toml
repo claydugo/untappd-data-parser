@@ -27,8 +27,8 @@ precommit-install = "pre-commit install"
 [dependencies]
 # Pure-stdlib library + dev tooling, all from conda-forge. Version policy mirrors
 # the wider toolchain: pins are `>=<floor>,<next-breaking>`; `pixi update` may take
-# patch/minor fixes but never a known-breaking major. pixi.lock holds the exact
-# resolved versions (it is gitignored here — this is a single-author tool).
+# patch/minor fixes but never a known-breaking major. pixi.lock is committed so
+# CI and every contributor resolve the exact same versions.
 python = ">=3.13,<3.14"
 ruff = ">=0.14,<0.15"
 mypy = ">=1.18,<2"
