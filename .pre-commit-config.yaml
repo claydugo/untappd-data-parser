@@ -1,0 +1,31 @@
+# Git pre-commit hooks. Install once per clone: `pixi run precommit-install`.
+#
+# Every hook runs through `pixi run` so it uses the exact tool versions pinned in
+# pixi.toml. Import sorting is Ruff's `I` rule (see [tool.ruff.lint] in
+# pyproject.toml), not a separate isort hook.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff (lint + import sort)
+        entry: pixi run ruff check --fix --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
+      - id: ruff-format
+        name: ruff format
+        entry: pixi run ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
+      - id: mypy
+        name: mypy
+        entry: pixi run mypy
+        language: system
+        types_or: [python, pyi]
+        # mypy is configured in pyproject.toml (files = ["src/untappd_parser"]) and
+        # type-checks the package as a whole, so it ignores the changed-file list.
+        pass_filenames: false
+        require_serial: true

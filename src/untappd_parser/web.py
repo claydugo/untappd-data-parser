@@ -58,7 +58,7 @@ def data_to_csv(data):
         writer.writerows(data)
         return output.getvalue()
     except Exception as e:
-        console.error(f"CSV generation error: {str(e)}")
+        console.error(f"CSV generation error: {e!s}")
         show_alert("Error generating CSV file", "error")
         return ""
 
@@ -116,8 +116,8 @@ def process_file(file_content):
     except Exception as e:
         app_state.reset()
         document.getElementById("loading").classList.remove("active")
-        show_alert(f"Error: {str(e)}", "error")
-        console.error(f"Processing error: {str(e)}")
+        show_alert(f"Error: {e!s}", "error")
+        console.error(f"Processing error: {e!s}")
 
 
 def update_results():
@@ -171,8 +171,8 @@ def update_results():
         else:
             location = "No location"
 
-        first_checkin = escape_html(venue.get("First Check-In", "N/A"))
-        last_checkin = escape_html(venue.get("Last Check-In", ""))
+        first_checkin = escape_html(venue.get("First Checkin", "N/A"))
+        last_checkin = escape_html(venue.get("Last Checkin", ""))
 
         preview_html += f"""
         <div class="venue-item">

@@ -1,0 +1,40 @@
+[workspace]
+name = "untappd-data-parser"
+version = "0.1.0"
+description = "Parse and analyze Untappd beer check-in data exports"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+# Pin the channel solve order (pixi's default, stated explicitly) and a minimum
+# pixi so every contributor resolves the lock identically.
+channel-priority = "strict"
+requires-pixi = ">=0.61"
+
+[tasks]
+# Run the CLI: `pixi run parse <export>.json [--key ...] [--split-by-visits]`
+parse = "untappd-parser"
+# Lint, format, and type-check — the same three gates pre-commit runs.
+lint = "ruff check ."
+format = "ruff format ."
+typecheck = "mypy"
+test = "pytest"
+# One-shot gate: everything that CI enforces.
+check = { depends-on = ["lint", "typecheck", "test"] }
+# Serve the browser UI locally: http://localhost:8080/untappd.html
+# (PyScript fetches the package source directly — no build step.)
+serve = "python -m http.server 8080"
+precommit-install = "pre-commit install"
+
+[dependencies]
+# Pure-stdlib library + dev tooling, all from conda-forge. Version policy mirrors
+# the wider toolchain: pins are `>=<floor>,<next-breaking>`; `pixi update` may take
+# patch/minor fixes but never a known-breaking major. pixi.lock holds the exact
+# resolved versions (it is gitignored here — this is a single-author tool).
+python = ">=3.13,<3.14"
+ruff = ">=0.14,<0.15"
+mypy = ">=1.18,<2"
+pytest = ">=8.4,<9"
+pre-commit = ">=4.4,<5"
+
+[pypi-dependencies]
+# Only the editable local package; every dev tool above is conda-forge.
+untappd-data-parser = { path = ".", editable = true }

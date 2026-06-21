@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Runtime/dev dependencies are managed by pixi (conda-forge), which Dependabot
+  # does not support — so the only ecosystem left to watch is the CI actions.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    reviewers:
+      - "claydugo"

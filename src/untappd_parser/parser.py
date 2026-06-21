@@ -1,23 +1,22 @@
+from __future__ import annotations
+
 import csv
 import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, ClassVar, cast
 
 
-@dataclass
+@dataclass(frozen=True)
 class VenueLocation:
     name: str
     latitude: float
     longitude: float
 
-    def __hash__(self) -> int:
-        return hash((self.name, self.latitude, self.longitude))
-
 
 class UntappdParser:
-    desired_keys: set[str] = {
+    desired_keys: ClassVar[set[str]] = {
         "beer_name",
         "brewery_name",
         "beer_type",
@@ -32,22 +31,22 @@ class UntappdParser:
 
     def __init__(
         self,
-        data: Optional[List[Dict[str, Any]]] = None,
-        filename: Optional[Union[str, Path]] = None,
+        data: list[dict[str, Any]] | None = None,
+        filename: str | Path | None = None,
     ):
         if data is not None:
-            self.data: List[Dict[str, Any]] = data
+            self.data: list[dict[str, Any]] = data
         elif filename is not None:
             self.filename: Path = Path(filename)
-            self.data: List[Dict[str, Any]] = self._load_data()
+            self.data = self._load_data()
         else:
             raise ValueError("Either data or filename must be provided")
 
-    def _load_data(self) -> List[Dict[str, Any]]:
-        with open(self.filename, "r", encoding="utf-8") as f:
-            return json.load(f)
+    def _load_data(self) -> list[dict[str, Any]]:
+        with self.filename.open(encoding="utf-8") as f:
+            return cast("list[dict[str, Any]]", json.load(f))
 
-    def get_unique_entries(self, key: str) -> List[Dict[str, Any]]:
+    def get_unique_entries(self, key: str) -> list[dict[str, Any]]:
         if key == "venue":
             return self._get_unique_venues()
 
@@ -55,8 +54,8 @@ class UntappdParser:
             {entry[key]: entry for entry in self.data if entry.get(key) is not None}.values()
         )
 
-    def _get_unique_venues(self) -> List[Dict[str, Any]]:
-        venue_info: Dict[VenueLocation, Dict[str, Any]] = {}
+    def _get_unique_venues(self) -> list[dict[str, Any]]:
+        venue_info: dict[VenueLocation, dict[str, Any]] = {}
         for entry in self.data:
             venue_name = entry.get("venue_name")
             venue_lat = entry.get("venue_lat")
@@ -83,7 +82,7 @@ class UntappdParser:
                     venue_info[venue]["checkin_dates"].append(entry["created_at"])
 
         result = []
-        for venue, info in venue_info.items():
+        for info in venue_info.values():
             dates = info.pop("checkin_dates", [])
 
             if dates:
@@ -97,11 +96,11 @@ class UntappdParser:
 
     def clean_data(
         self,
-        data: List[Dict[str, Any]],
+        data: list[dict[str, Any]],
         strip_backend: bool = True,
         fancy_dates: bool = True,
         human_keys: bool = True,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         result = data.copy()
 
         if strip_backend:
@@ -113,17 +112,17 @@ class UntappdParser:
 
         return result
 
-    def _strip_backend_keys(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _strip_backend_keys(self, data: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not data:
             return data
         backend_keys = set(data[0].keys()) - self.desired_keys
         return [{k: v for k, v in entry.items() if k not in backend_keys} for entry in data]
 
     @staticmethod
-    def _format_dates(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        def format_date_string(date_str: str) -> Optional[str]:
+    def _format_dates(data: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        def format_date_string(date_str: str) -> str | None:
             try:
-                return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").strftime(
+                return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").strftime(  # noqa: DTZ007
                     "%B %d, %Y at %I:%M%p"
                 )
             except (ValueError, TypeError):
@@ -148,13 +147,13 @@ class UntappdParser:
         return data
 
     @staticmethod
-    def _humanize_keys(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _humanize_keys(data: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [{k.replace("_", " ").title(): v for k, v in entry.items()} for entry in data]
 
-    def get_visit_distribution(self, data: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
-        single_visit: List[Dict[str, Any]] = []
-        two_to_four_visits: List[Dict[str, Any]] = []
-        five_plus_visits: List[Dict[str, Any]] = []
+    def get_visit_distribution(self, data: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+        single_visit: list[dict[str, Any]] = []
+        two_to_four_visits: list[dict[str, Any]] = []
+        five_plus_visits: list[dict[str, Any]] = []
 
         for entry in data:
             total_visits = entry.get("Total Venue Checkins", entry.get("total_venue_checkins", 0))
@@ -172,9 +171,9 @@ class UntappdParser:
         }
 
     def save_files(
-        self, data: List[Dict[str, Any]], base_filename: str, split_by_visits: bool = False
+        self, data: list[dict[str, Any]], base_filename: str, split_by_visits: bool = False
     ) -> None:
-        with open(f"{base_filename}.json", "w", encoding="utf-8") as f:
+        with Path(f"{base_filename}.json").open("w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
         if split_by_visits and "venue" in base_filename:
@@ -182,17 +181,17 @@ class UntappdParser:
         else:
             self._save_csv(data, f"{base_filename}.csv")
 
-    def _save_csv(self, data: List[Dict[str, Any]], filename: str) -> None:
+    def _save_csv(self, data: list[dict[str, Any]], filename: str) -> None:
         if not data:
             return
 
         fieldnames = list(data[0].keys())
-        with open(filename, "w", newline="", encoding="utf-8") as f:
+        with Path(filename).open("w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(data)
 
-    def _save_visit_distribution_csvs(self, data: List[Dict[str, Any]], base_filename: str) -> None:
+    def _save_visit_distribution_csvs(self, data: list[dict[str, Any]], base_filename: str) -> None:
         distribution = self.get_visit_distribution(data)
 
         distributions = [
@@ -206,7 +205,7 @@ class UntappdParser:
                 self._save_csv(venues, filename)
                 print(f"  - {desc}: {len(venues)} venues saved to {filename}")
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> dict[str, int]:
         unique_venues = self.get_unique_entries("venue")
         return {
             "total_checkins": len(self.data),

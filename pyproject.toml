@@ -10,16 +10,17 @@ readme = "README.md"
 authors = [
     {name = "Clay Dugo", email = "claydugo@gmail.com"}
 ]
-license = {text = "MIT"}
+license = "MIT"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Utilities",
 ]
 keywords = ["untappd", "beer", "data-analysis", "csv", "json"]
-requires-python = ">=3.12"
+requires-python = ">=3.13"
+# The library is pure stdlib — no runtime dependencies. Dev tooling (ruff, mypy,
+# pytest) is managed by pixi from conda-forge, see pixi.toml.
 dependencies = []
 
 [project.urls]
@@ -29,33 +30,70 @@ Issues = "https://github.com/claydugo/untappd-data-parser/issues"
 [project.scripts]
 untappd-parser = "untappd_parser.cli:main"
 
-[project.optional-dependencies]
-dev = [
-    "ruff>=0.1.0",
-    "python-minifier>=3.0.0",
-]
-
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "W",      # pycodestyle warnings
+    "I",      # isort: import sorting
+    "UP",     # pyupgrade: modernize syntax for the target version
+    "B",      # flake8-bugbear: likely bugs
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "RET",    # flake8-return: return-statement consistency
+    "PTH",    # flake8-use-pathlib: prefer pathlib over os.path / open
+    "DTZ",    # flake8-datetimez: flag naive datetimes
+    "PERF",   # perflint: performance anti-patterns
+    "S",      # flake8-bandit: security checks
+    "RUF",    # Ruff-specific rules
+]
+ignore = [
+    "S101",  # asserts are the pytest idiom; allowed project-wide for this tool
+]
+
+[tool.ruff.lint.per-file-ignores]
+# web.py runs under PyScript/Pyodide: `js`/`pyodide` are injected globals, and the
+# event handlers must swallow broad exceptions to surface them in the browser UI.
+"src/untappd_parser/web.py" = ["BLE001", "S110"]
+
+[tool.ruff.lint.isort]
+split-on-trailing-comma = false
+
+[tool.ruff.format]
+quote-style = "preserve"
+skip-magic-trailing-comma = false
 
 [tool.mypy]
-python_version = "3.12"
-warn_return_any = true
+python_version = "3.13"
+files = ["src/untappd_parser"]
+# Pragmatic-strict: check everything we can and flag the bugs that matter, but
+# don't demand a full annotation pass on the PyScript glue on day one.
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
 warn_unused_configs = true
+warn_return_any = true
+no_implicit_reexport = true
+extra_checks = true
 
-[tool.pixi.workspace]
-channels = ["conda-forge"]
-platforms = ["linux-64"]
+# PyScript/Pyodide runtime modules exist only in the browser; they ship no stubs.
+[[tool.mypy.overrides]]
+module = ["js.*", "pyodide.*"]
+ignore_missing_imports = true
 
-[tool.pixi.pypi-dependencies]
-untappd-data-parser = { path = ".", editable = true }
+# web.py is browser-only glue: every DOM handle comes back as `Any` from the
+# Pyodide `js` bridge, so type-checking it gates on noise, not real bugs. Ruff
+# still lints it; mypy focuses on the importable library.
+[[tool.mypy.overrides]]
+module = ["untappd_parser.web"]
+ignore_errors = true
 
-[tool.pixi.environments]
-default = { solve-group = "default" }
-dev = { features = ["dev"], solve-group = "default" }
-
-[tool.pixi.tasks]
+[tool.pytest.ini_options]
+testpaths = ["tests"]

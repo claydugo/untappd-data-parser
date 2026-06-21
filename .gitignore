@@ -1,8 +1,5 @@
 .claude/
 
-# Node
-node_modules/
-
 # Python
 __pycache__/
 *.egg-info/
@@ -14,13 +11,15 @@ env/
 
 .DS_Store
 
-# Ignore data files but allow config files
+# Tool caches
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# Ignore Untappd data exports (the only JSON/CSV in this repo)
 *.json
-!package.json
-!package-lock.json
-!.stylelintrc.json
-!biome.json
 *.csv
+
 # pixi environments
 .pixi/*
 !.pixi/config.toml
