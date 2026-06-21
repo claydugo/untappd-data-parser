@@ -712,7 +712,7 @@ packages:
 - pypi: ./
   name: untappd-data-parser
   version: 0.1.0
-  sha256: 7b0d350fa4ee112a8205823b203b5c4f0e9c2d028c86fb76173320c625520a63
+  sha256: 3494bb6f7e7b4cb771eca27d20bd0362037aa27ff57a547eb32e1d73cbb19921
   requires_python: '>=3.13'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/virtualenv-21.5.1-pyhcf101f3_0.conda
