@@ -4,8 +4,17 @@
 	box-sizing: border-box;
 }
 
+/* Fallback if the PyScript CDN stylesheet fails to load: never show raw config/code. */
+py-config,
+py-script {
+	display: none;
+}
+
 :root {
 	--primary-color: #328fa8;
+
+	/* Darker teal for small text: >=4.5:1 on white, #f8f9fa, and the 10% teal tints. */
+	--primary-text-color: #21657c;
 	--hover-color: #3aabc9;
 	--background-color: #f8f9fa;
 	--text-color: #343a40;
@@ -66,6 +75,11 @@ h1 {
 .upload-area.dragover {
 	border-color: var(--primary-color);
 	background: rgb(50 143 168 / 10%);
+}
+
+.upload-area:focus-visible {
+	outline: 2px solid var(--primary-color);
+	outline-offset: 2px;
 }
 
 .upload-icon {
@@ -159,7 +173,7 @@ input[type="file"] {
 
 .alert-info {
 	background: rgb(50 143 168 / 10%);
-	color: var(--primary-color);
+	color: var(--primary-text-color);
 	border-color: var(--primary-color);
 }
 
@@ -251,17 +265,17 @@ input[type="file"] {
 
 .badge-primary {
 	background: rgb(50 143 168 / 10%);
-	color: var(--primary-color);
+	color: var(--primary-text-color);
 }
 
 .badge-success {
 	background: #e8f5e9;
-	color: #388e3c;
+	color: #2e7d32;
 }
 
 .badge-warning {
 	background: #fff3e0;
-	color: #f57c00;
+	color: #a14b00;
 }
 
 #pyscript-loading-message {
@@ -333,7 +347,7 @@ input[type="file"] {
 
 .upload-area .file-size-note {
 	margin-top: 10px;
-	color: #999;
+	color: #6c757d;
 }
 
 .results-header {
@@ -349,7 +363,6 @@ input[type="file"] {
 
 #split-buttons {
 	display: contents;
-	width: 100%;
 }
 
 .section-heading {

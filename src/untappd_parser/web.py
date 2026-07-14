@@ -4,7 +4,7 @@ import io
 import json
 
 from js import URL, Blob, FileReader, console, document, window
-from pyodide.ffi import create_proxy
+from pyodide.ffi import create_once_callable, create_proxy
 
 from untappd_parser import UntappdParser
 
@@ -14,6 +14,7 @@ class AppState:
         self.parser = None
         self.processed_venues = None
         self.cleaned_data = None
+        self.alert_timer = None
 
     def reset(self):
         self.parser = None
@@ -27,17 +28,33 @@ class AppState:
 app_state = AppState()
 
 
+# setTimeout needs a persistent proxy; a bare lambda is destroyed before the timer fires.
+_dismiss_alert = create_proxy(lambda: document.getElementById("alertsStatus").replaceChildren())
+
+
 def show_alert(message, alert_type="info"):
-    alerts_div = document.getElementById("alerts")
     allowed_types = {"info", "success", "error"}
     alert_class = alert_type if alert_type in allowed_types else "info"
+
+    error_region = document.getElementById("alertsError")
+    status_region = document.getElementById("alertsStatus")
+    target = error_region if alert_class == "error" else status_region
+    other = status_region if alert_class == "error" else error_region
 
     alert_element = document.createElement("div")
     alert_element.classList.add("alert", f"alert-{alert_class}")
     alert_element.textContent = str(message)
 
-    alerts_div.replaceChildren(alert_element)
-    window.setTimeout(lambda: alerts_div.replaceChildren(), 5000)
+    other.replaceChildren()
+    target.replaceChildren(alert_element)
+
+    if app_state.alert_timer is not None:
+        window.clearTimeout(app_state.alert_timer)
+        app_state.alert_timer = None
+
+    # Errors stay until replaced; info/success auto-dismiss.
+    if alert_class != "error":
+        app_state.alert_timer = window.setTimeout(_dismiss_alert, 5000)
 
 
 def escape_html(text):
@@ -52,7 +69,8 @@ def data_to_csv(data):
 
     try:
         output = io.StringIO()
-        fieldnames = list(data[0].keys()) if data else []
+        # Rows can have heterogeneous key sets; take the union so DictWriter never raises.
+        fieldnames = list(dict.fromkeys(key for entry in data for key in entry))
         writer = csv.DictWriter(output, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(data)
@@ -124,7 +142,7 @@ def update_results():
     if not app_state.has_data():
         return
 
-    stats = app_state.parser.get_stats()
+    stats = app_state.parser.get_stats(unique_entries=app_state.processed_venues)
 
     document.getElementById("totalCheckins").textContent = f"{stats['total_checkins']:,}"
     document.getElementById("uniqueVenues").textContent = f"{stats['unique_venues']:,}"
@@ -147,21 +165,31 @@ def update_results():
         document.getElementById("twoToFour").parentElement.parentElement.style.display = "none"
         document.getElementById("fivePlus").parentElement.parentElement.style.display = "none"
 
+    def field(venue, key, default=None):
+        # Keys vary with the humanKeys/fancyDates checkboxes: humanized name first, then raw.
+        for candidate in (key.replace("_", " ").title(), key):
+            value = venue.get(candidate)
+            if value is not None:
+                return value
+        return default
+
     sorted_venues = sorted(
-        app_state.cleaned_data, key=lambda x: x.get("Total Venue Checkins", 0), reverse=True
+        app_state.cleaned_data,
+        key=lambda x: field(x, "total_venue_checkins", default=0),
+        reverse=True,
     )
     top_10 = sorted_venues[:10]
 
     preview_html = ""
     for venue in top_10:
-        visits = venue.get("Total Venue Checkins", 0)
+        visits = field(venue, "total_venue_checkins", default=0)
         badge_class = (
             "badge-primary" if visits == 1 else "badge-warning" if visits <= 4 else "badge-success"
         )
 
-        venue_name = escape_html(venue.get("Venue Name", "(No venue)"))
-        lat = venue.get("Venue Lat")
-        lng = venue.get("Venue Lng")
+        venue_name = escape_html(field(venue, "venue_name", default="(No venue)"))
+        lat = field(venue, "venue_lat")
+        lng = field(venue, "venue_lng")
 
         if lat is not None and lng is not None:
             try:
@@ -171,8 +199,8 @@ def update_results():
         else:
             location = "No location"
 
-        first_checkin = escape_html(venue.get("First Checkin", "N/A"))
-        last_checkin = escape_html(venue.get("Last Checkin", ""))
+        first_checkin = escape_html(field(venue, "first_checkin", default="N/A"))
+        last_checkin = escape_html(field(venue, "last_checkin", default=""))
 
         preview_html += f"""
         <div class="venue-item">
@@ -191,29 +219,52 @@ def update_results():
     document.getElementById("venuePreview").innerHTML = preview_html
 
 
+def process_selected_file(file):
+    if not file.name.lower().endswith(".json"):
+        show_alert("Please upload a JSON file", "error")
+        return False
+
+    if file.size > 50 * 1024 * 1024:  # 50MB limit
+        show_alert("File size exceeds 50MB limit", "error")
+        return False
+
+    document.getElementById("loading").classList.add("active")
+    document.getElementById("results").classList.remove("active")
+
+    reader = FileReader.new()
+
+    def on_load(e):
+        process_file(e.target.result)
+
+    def on_error(e):
+        document.getElementById("loading").classList.remove("active")
+        show_alert("Could not read the file. Please try again.", "error")
+
+    load_proxy = create_proxy(on_load)
+    error_proxy = create_proxy(on_error)
+
+    def on_loadend(e):
+        # loadend fires after load/error/abort; free the handler proxies here.
+        reader.onload = None
+        reader.onerror = None
+        reader.onabort = None
+        load_proxy.destroy()
+        error_proxy.destroy()
+
+    reader.onload = load_proxy
+    reader.onerror = error_proxy
+    reader.onabort = error_proxy
+    reader.onloadend = create_once_callable(on_loadend)
+    reader.readAsText(file)
+    return True
+
+
 def handle_file(event):
-    files = event.target.files
-    if files.length > 0:
-        file = files.item(0)
-
-        if not file.name.endswith(".json"):
-            show_alert("Please upload a JSON file", "error")
-            return
-
-        if file.size > 50 * 1024 * 1024:  # 50MB limit
-            show_alert("File size exceeds 50MB limit", "error")
-            return
-
-        document.getElementById("loading").classList.add("active")
-        document.getElementById("results").classList.remove("active")
-
-        reader = FileReader.new()
-
-        def on_load(e):
-            process_file(e.target.result)
-
-        reader.onload = create_proxy(on_load)
-        reader.readAsText(file)
+    file_input = document.getElementById("fileInput")
+    files = file_input.files
+    if files.length > 0 and not process_selected_file(files.item(0)):
+        # Clear the rejected file so re-selecting the same one fires change again.
+        file_input.value = ""
 
 
 def dragover(e):
@@ -231,9 +282,8 @@ def drop(e):
     document.getElementById("uploadArea").classList.remove("dragover")
 
     files = e.dataTransfer.files
-    if files.length > 0:
+    if files.length > 0 and process_selected_file(files.item(0)):
         document.getElementById("fileInput").files = files
-        handle_file(e)
 
 
 def export_all(event):
@@ -298,7 +348,8 @@ def reset_for_new_file():
     document.getElementById("processing-options").style.display = "block"
     document.getElementById("results").classList.remove("active")
     document.getElementById("fileInput").value = ""
-    document.getElementById("alerts").innerHTML = ""
+    document.getElementById("alertsStatus").replaceChildren()
+    document.getElementById("alertsError").replaceChildren()
 
 
 def init_app():
@@ -308,6 +359,13 @@ def init_app():
 
     upload_area = document.getElementById("uploadArea")
     upload_area.onclick = lambda e: file_input.click()
+
+    def upload_area_keydown(e):
+        if e.key in ("Enter", " "):
+            e.preventDefault()
+            file_input.click()
+
+    upload_area.addEventListener("keydown", create_proxy(upload_area_keydown))
 
     upload_area.addEventListener("dragover", create_proxy(dragover))
     upload_area.addEventListener("dragleave", create_proxy(dragleave))

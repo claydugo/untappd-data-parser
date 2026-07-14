@@ -130,6 +130,87 @@ def test_stats(parser):
     }
 
 
+def test_stats_ignore_venueless_checkins(sample_data):
+    # A check-in with no venue is not a duplicate visit; it must not inflate the count.
+    data = [*sample_data, _checkin("Homebrew", "Me", None, None, None, "2024-06-01 12:00:00")]
+    stats = UntappdParser(data=data).get_stats()
+    assert stats == {
+        "total_checkins": 11,
+        "unique_venues": 3,
+        "duplicates": 7,
+    }
+
+
+def test_stats_for_other_keys(parser):
+    stats = parser.get_stats("brewery_name")
+    assert stats == {
+        "total_checkins": 10,
+        "unique_brewery_names": 4,
+        "duplicates": 6,
+    }
+
+
+def test_csv_export_handles_heterogeneous_rows(tmp_path, sample_data):
+    # An unparseable created_at leaves raw date keys on one row while other rows
+    # get the humanized names; the CSV writer must union the fieldnames.
+    data = [*sample_data, _checkin("Mystery", "Unknown", "The Void", 43.0, -78.0, "not-a-date")]
+    parser = UntappdParser(data=data)
+    cleaned = parser.clean_data(parser.get_unique_entries("venue"))
+    base = str(tmp_path / "out_unique_venue")
+    parser.save_files(cleaned, base)
+
+    with Path(f"{base}.csv").open(encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert len(rows) == 4
+
+
+def test_strip_backend_keys_uses_union_of_all_rows(parser):
+    # A backend key missing from the first row but present later must still be stripped.
+    data = [
+        {"beer_name": "Pliny", "brewery_name": "Russian River"},
+        {"beer_name": "Heady", "brewery_name": "The Alchemist", "rating_score": 4.5},
+    ]
+    cleaned = parser.clean_data(data, fancy_dates=False, human_keys=False)
+    assert all("rating_score" not in entry for entry in cleaned)
+
+
+def test_clean_data_preserves_requested_keys(parser):
+    venues = parser.get_unique_entries("venue")
+    cleaned = parser.clean_data(
+        venues, fancy_dates=False, human_keys=False, preserve_keys={"checkin_id"}
+    )
+    assert all("checkin_id" in entry for entry in cleaned)
+
+
+def test_split_by_visits_no_longer_depends_on_filename(tmp_path, parser):
+    # Splitting used to be gated on "venue" appearing in the filename.
+    venues = parser.get_unique_entries("venue")
+    cleaned = parser.clean_data(venues)
+    base = str(tmp_path / "out")
+    parser.save_files(cleaned, base, split_by_visits=True)
+    assert Path(f"{base}_1_visit.csv").exists()
+    assert Path(f"{base}_2-4_visits.csv").exists()
+    assert Path(f"{base}_5+_visits.csv").exists()
+
+
+def test_split_by_visits_falls_back_to_single_csv_without_visit_counts(tmp_path, parser):
+    # Non-venue data matches no visit bucket; a single CSV must be written, not none.
+    breweries = parser.get_unique_entries("brewery_name")
+    cleaned = parser.clean_data(breweries, preserve_keys={"brewery_name"})
+    base = str(tmp_path / "out_unique_brewery_name")
+    parser.save_files(cleaned, base, split_by_visits=True)
+
+    with Path(f"{base}.csv").open(encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert len(rows) == 4
+    assert not list(tmp_path.glob("*_visit*.csv"))
+
+
+def test_stats_accept_precomputed_unique_entries(parser):
+    unique_entries = parser.get_unique_entries("venue")
+    assert parser.get_stats(unique_entries=unique_entries) == parser.get_stats()
+
+
 def test_save_files_writes_json_and_split_csvs(tmp_path, parser):
     venues = parser.get_unique_entries("venue")
     cleaned = parser.clean_data(venues)

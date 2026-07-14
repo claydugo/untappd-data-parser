@@ -12,11 +12,32 @@
 		<link rel="preconnect" href="https://cdn.jsdelivr.net">
 		<link rel="dns-prefetch" href="https://pyscript.net">
 		<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-		<link rel="modulepreload" href="https://pyscript.net/releases/2025.8.1/core.js">
-		<link rel="preload" href="https://pyscript.net/releases/2025.8.1/core.css" as="style">
+		<link
+			rel="modulepreload"
+			href="https://pyscript.net/releases/2025.8.1/core.js"
+			integrity="sha384-3iTboEo+2h87xDhKzYs49FbFFhi1sOZV/X7TQG7Bf9A0Lo1ZO98j9P0LBbu8GrW4"
+			crossorigin="anonymous"
+		>
+		<link
+			rel="preload"
+			href="https://pyscript.net/releases/2025.8.1/core.css"
+			as="style"
+			integrity="sha384-C7Vo5fjeYiyN27fdJgeiteaUwrLVW0+I9EbpT1kBxsxac8+kxV5zYrLayugNSu1q"
+			crossorigin="anonymous"
+		>
 		<link rel="stylesheet" href="style.css">
-		<link rel="stylesheet" href="https://pyscript.net/releases/2025.8.1/core.css">
-		<script type="module" src="https://pyscript.net/releases/2025.8.1/core.js"></script>
+		<link
+			rel="stylesheet"
+			href="https://pyscript.net/releases/2025.8.1/core.css"
+			integrity="sha384-C7Vo5fjeYiyN27fdJgeiteaUwrLVW0+I9EbpT1kBxsxac8+kxV5zYrLayugNSu1q"
+			crossorigin="anonymous"
+		>
+		<script
+			type="module"
+			src="https://pyscript.net/releases/2025.8.1/core.js"
+			integrity="sha384-3iTboEo+2h87xDhKzYs49FbFFhi1sOZV/X7TQG7Bf9A0Lo1ZO98j9P0LBbu8GrW4"
+			crossorigin="anonymous"
+		></script>
 	</head>
 	<body>
 		<py-config>
@@ -46,7 +67,13 @@ files = ["__init__.py", "parser.py", "web.py"]
 			</div>
 
 			<div id="main-content" class="hidden">
-				<div class="upload-area" id="uploadArea">
+				<div
+					class="upload-area"
+					id="uploadArea"
+					role="button"
+					tabindex="0"
+					aria-label="Upload your Untappd JSON export"
+				>
 					<div class="upload-icon">📁</div>
 					<p>
 						<strong>Click to upload or drag & drop your JSON file</strong>
@@ -82,7 +109,10 @@ files = ["__init__.py", "parser.py", "web.py"]
 					<p>Processing your data...</p>
 				</div>
 
-				<div id="alerts"></div>
+				<div id="alerts">
+					<div id="alertsStatus" role="status"></div>
+					<div id="alertsError" role="alert"></div>
+				</div>
 
 				<div class="results" id="results">
 					<div class="results-header">
@@ -149,10 +179,12 @@ init_app()
 		<a
 			href="https://github.com/claydugo/untappd-data-parser"
 			target="_blank"
+			rel="noopener noreferrer"
 			class="github-link"
+			aria-label="View on GitHub"
 			title="View on GitHub"
 		>
-			<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+			<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 				<path
 					d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
 				/>

@@ -32,6 +32,15 @@ def main() -> None:
         print(f"Error: File '{args.file}' not found", file=sys.stderr)
         sys.exit(1)
 
+    split_by_visits = args.split_by_visits
+    if split_by_visits and args.key != "venue":
+        print(
+            f"Warning: --split-by-visits only applies to --key venue; "
+            f"writing a single CSV for key '{args.key}'",
+            file=sys.stderr,
+        )
+        split_by_visits = False
+
     try:
         untappd = UntappdParser(filename=args.file)
         unique_entries = untappd.get_unique_entries(args.key)
@@ -41,12 +50,13 @@ def main() -> None:
             strip_backend=not args.no_strip_backend,
             fancy_dates=not args.no_fancy_dates,
             human_keys=not args.no_human_keys,
+            preserve_keys={args.key},
         )
 
         base_filename = f"{Path(args.file).stem}_unique_{args.key}"
-        untappd.save_files(cleaned_data, base_filename, split_by_visits=args.split_by_visits)
+        untappd.save_files(cleaned_data, base_filename, split_by_visits=split_by_visits)
 
-        stats = untappd.get_stats()
+        stats = untappd.get_stats(args.key, unique_entries=unique_entries)
         print(f"Total check-ins: {stats['total_checkins']}")
         print(f"Unique {args.key}s: {len(unique_entries)}")
         print(f"Duplicates: {stats['duplicates']}")

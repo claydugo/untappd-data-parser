@@ -100,11 +100,12 @@ class UntappdParser:
         strip_backend: bool = True,
         fancy_dates: bool = True,
         human_keys: bool = True,
+        preserve_keys: set[str] | None = None,
     ) -> list[dict[str, Any]]:
         result = data.copy()
 
         if strip_backend:
-            result = self._strip_backend_keys(result)
+            result = self._strip_backend_keys(result, preserve_keys)
         if fancy_dates:
             result = self._format_dates(result)
         if human_keys:
@@ -112,10 +113,14 @@ class UntappdParser:
 
         return result
 
-    def _strip_backend_keys(self, data: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _strip_backend_keys(
+        self, data: list[dict[str, Any]], preserve_keys: set[str] | None = None
+    ) -> list[dict[str, Any]]:
         if not data:
             return data
-        backend_keys = set(data[0].keys()) - self.desired_keys
+        keep = self.desired_keys | (preserve_keys or set())
+        all_keys = {key for entry in data for key in entry}
+        backend_keys = all_keys - keep
         return [{k: v for k, v in entry.items() if k not in backend_keys} for entry in data]
 
     @staticmethod
@@ -176,22 +181,23 @@ class UntappdParser:
         with Path(f"{base_filename}.json").open("w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
-        if split_by_visits and "venue" in base_filename:
-            self._save_visit_distribution_csvs(data, base_filename)
-        else:
+        # Non-venue rows have no visit counts and land in no bucket; fall back to a single CSV.
+        wrote_split = split_by_visits and self._save_visit_distribution_csvs(data, base_filename)
+        if not wrote_split:
             self._save_csv(data, f"{base_filename}.csv")
 
     def _save_csv(self, data: list[dict[str, Any]], filename: str) -> None:
         if not data:
             return
 
-        fieldnames = list(data[0].keys())
+        # Rows can have heterogeneous key sets; union them so DictWriter never raises.
+        fieldnames = list(dict.fromkeys(key for entry in data for key in entry))
         with Path(filename).open("w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(data)
 
-    def _save_visit_distribution_csvs(self, data: list[dict[str, Any]], base_filename: str) -> None:
+    def _save_visit_distribution_csvs(self, data: list[dict[str, Any]], base_filename: str) -> bool:
         distribution = self.get_visit_distribution(data)
 
         distributions = [
@@ -200,15 +206,29 @@ class UntappdParser:
             (distribution["5+_visits"], f"{base_filename}_5+_visits.csv", "5+ visits"),
         ]
 
+        wrote_any = False
         for venues, filename, desc in distributions:
             if venues:
                 self._save_csv(venues, filename)
                 print(f"  - {desc}: {len(venues)} venues saved to {filename}")
+                wrote_any = True
+        return wrote_any
 
-    def get_stats(self) -> dict[str, int]:
-        unique_venues = self.get_unique_entries("venue")
+    def get_stats(
+        self, key: str = "venue", unique_entries: list[dict[str, Any]] | None = None
+    ) -> dict[str, int]:
+        if unique_entries is None:
+            unique_entries = self.get_unique_entries(key)
+        if key == "venue":
+            # Each unique venue carries its check-in count; summing gives valid-venue check-ins.
+            counted = sum(
+                entry.get("Total Venue Checkins", entry.get("total_venue_checkins", 0))
+                for entry in unique_entries
+            )
+        else:
+            counted = sum(1 for entry in self.data if entry.get(key) is not None)
         return {
             "total_checkins": len(self.data),
-            "unique_venues": len(unique_venues),
-            "duplicates": len(self.data) - len(unique_venues),
+            f"unique_{key}s": len(unique_entries),
+            "duplicates": counted - len(unique_entries),
         }
