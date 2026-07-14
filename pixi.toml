@@ -7,7 +7,7 @@ platforms = ["linux-64"]
 # Pin the channel solve order (pixi's default, stated explicitly) and a minimum
 # pixi so every contributor resolves the lock identically.
 channel-priority = "strict"
-requires-pixi = ">=0.61"
+requires-pixi = ">=0.72"
 
 [tasks]
 # Run the CLI: `pixi run parse <export>.json [--key ...] [--split-by-visits]`
