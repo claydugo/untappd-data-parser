@@ -20,7 +20,7 @@ test = "pytest"
 # One-shot gate: everything that CI enforces.
 check = { depends-on = ["lint", "typecheck", "test"] }
 # Serve the browser UI locally: http://localhost:8080/untappd.html
-# (PyScript fetches the package source directly — no build step.)
+# (Pyodide fetches the package source directly — no build step.)
 serve = "python -m http.server 8080"
 precommit-install = "pre-commit install"
 
@@ -29,7 +29,7 @@ precommit-install = "pre-commit install"
 # the wider toolchain: pins are `>=<floor>,<next-breaking>`; `pixi update` may take
 # patch/minor fixes but never a known-breaking major. pixi.lock is committed so
 # CI and every contributor resolve the exact same versions.
-python = ">=3.13,<3.14"
+python = ">=3.14,<3.15"
 ruff = ">=0.14,<0.15"
 mypy = ">=1.18,<2"
 pytest = ">=8.4,<9"

@@ -6,46 +6,55 @@
 		<title>Untappd Data Parser</title>
 		<meta
 			http-equiv="Content-Security-Policy"
-			content="default-src 'self' https://pyscript.net https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pyscript.net https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://pyscript.net https://cdn.jsdelivr.net; connect-src 'self' https://pyscript.net https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data: https://pyscript.net https://cdn.jsdelivr.net; worker-src 'self' blob: https://pyscript.net https://cdn.jsdelivr.net;"
+			content="default-src 'self' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data:; worker-src 'self' blob:;"
 		>
-		<link rel="preconnect" href="https://pyscript.net">
 		<link rel="preconnect" href="https://cdn.jsdelivr.net">
-		<link rel="dns-prefetch" href="https://pyscript.net">
 		<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+		<!--
+			The import map must precede the modulepreload links. On Pyodide upgrades,
+			update the version and hashes here and in the bootstrap script together.
+		-->
+		<script type="importmap">
+		{
+			"integrity": {
+				"https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide.mjs": "sha384-zTvWu1jcr4jO+JYraHN3J9isYqYykqaq66ytFF/oeweyKs/noc2o4ufj7P8a0OlV",
+				"https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide.asm.mjs": "sha384-DYiUC4dgUcaFftADt0aYI5x6pXjFjTD2dK++I+PCGqD53RDLYfJHick+HUej5UbL"
+			}
+		}
+		</script>
 		<link
 			rel="modulepreload"
-			href="https://pyscript.net/releases/2025.8.1/core.js"
-			integrity="sha384-3iTboEo+2h87xDhKzYs49FbFFhi1sOZV/X7TQG7Bf9A0Lo1ZO98j9P0LBbu8GrW4"
+			href="https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide.mjs"
+			integrity="sha384-zTvWu1jcr4jO+JYraHN3J9isYqYykqaq66ytFF/oeweyKs/noc2o4ufj7P8a0OlV"
+			crossorigin="anonymous"
+		>
+		<link
+			rel="modulepreload"
+			href="https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide.asm.mjs"
+			integrity="sha384-DYiUC4dgUcaFftADt0aYI5x6pXjFjTD2dK++I+PCGqD53RDLYfJHick+HUej5UbL"
 			crossorigin="anonymous"
 		>
 		<link
 			rel="preload"
-			href="https://pyscript.net/releases/2025.8.1/core.css"
-			as="style"
-			integrity="sha384-C7Vo5fjeYiyN27fdJgeiteaUwrLVW0+I9EbpT1kBxsxac8+kxV5zYrLayugNSu1q"
+			href="https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide.asm.wasm"
+			as="fetch"
+			crossorigin="anonymous"
+		>
+		<link
+			rel="preload"
+			href="https://cdn.jsdelivr.net/pyodide/v314.0.2/full/python_stdlib.zip"
+			as="fetch"
+			crossorigin="anonymous"
+		>
+		<link
+			rel="preload"
+			href="https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide-lock.json"
+			as="fetch"
 			crossorigin="anonymous"
 		>
 		<link rel="stylesheet" href="style.css">
-		<link
-			rel="stylesheet"
-			href="https://pyscript.net/releases/2025.8.1/core.css"
-			integrity="sha384-C7Vo5fjeYiyN27fdJgeiteaUwrLVW0+I9EbpT1kBxsxac8+kxV5zYrLayugNSu1q"
-			crossorigin="anonymous"
-		>
-		<script
-			type="module"
-			src="https://pyscript.net/releases/2025.8.1/core.js"
-			integrity="sha384-3iTboEo+2h87xDhKzYs49FbFFhi1sOZV/X7TQG7Bf9A0Lo1ZO98j9P0LBbu8GrW4"
-			crossorigin="anonymous"
-		></script>
 	</head>
 	<body>
-		<py-config>
-[[fetch]]
-from = "./src/untappd_parser/"
-to_folder = "/untappd_parser"
-files = ["__init__.py", "parser.py", "web.py"]
-        </py-config>
 		<noscript>
 			<div
 				style="text-align: center; padding: 2rem; font-family: system-ui, -apple-system, sans-serif;"
@@ -61,7 +70,7 @@ files = ["__init__.py", "parser.py", "web.py"]
 			<h1>🍺 Untappd Data Parser</h1>
 			<p class="subtitle">Analyze your Untappd check-in data</p>
 
-			<div id="pyscript-loading-message">
+			<div id="loading-message">
 				<div class="spinner"></div>
 				<p>Loading Python environment...</p>
 			</div>
@@ -169,12 +178,42 @@ files = ["__init__.py", "parser.py", "web.py"]
 			</div>
 		</div>
 
-		<py-script>
-import sys
-sys.path.insert(0, "/")
-from untappd_parser.web import init_app
-init_app()
-		</py-script>
+		<script type="module">
+			const PYODIDE_URL = "https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide.mjs";
+			const PACKAGE_DIR = "/untappd_parser";
+			const PACKAGE_FILES = ["__init__.py", "parser.py", "web.py"];
+
+			async function main() {
+				const sourcesPromise = Promise.all(
+					PACKAGE_FILES.map(async (name) => {
+						const response = await fetch(`./src/untappd_parser/${name}`);
+						if (!response.ok) {
+							throw new Error(`Failed to fetch ${name}: HTTP ${response.status}`);
+						}
+						return response.text();
+					}),
+				);
+				// A static import failing would kill the module before the catch below exists.
+				const { loadPyodide } = await import(PYODIDE_URL);
+				const [pyodide, sources] = await Promise.all([loadPyodide(), sourcesPromise]);
+				pyodide.FS.mkdirTree(PACKAGE_DIR);
+				PACKAGE_FILES.forEach((name, i) => {
+					pyodide.FS.writeFile(`${PACKAGE_DIR}/${name}`, sources[i]);
+				});
+				pyodide.runPython(
+					'import sys\nsys.path.insert(0, "/")\nfrom untappd_parser.web import init_app\ninit_app()',
+				);
+			}
+
+			main().catch((error) => {
+				console.error(error);
+				const message = document.getElementById("loading-message");
+				if (message) {
+					message.innerHTML =
+						"<p>Failed to load the Python environment. Please refresh the page to try again.</p>";
+				}
+			});
+		</script>
 
 		<a
 			href="https://github.com/claydugo/untappd-data-parser"

@@ -55,9 +55,9 @@ This creates 3 separate CSV files:
 ### Browser Interface (No installation required!)
 
 Open `untappd.html` in your browser to use the parser without installing Python.
-[PyScript](https://pyscript.net) runs the same `untappd_parser` package in the
-browser via Pyodide — it fetches the source files directly, so there is no build
-step or bundle to maintain.
+[Pyodide](https://pyodide.org) runs the same `untappd_parser` package in the
+browser — it fetches the source files directly, so there is no build step or
+bundle to maintain.
 
 1. **Serve the file**
    ```bash
@@ -80,7 +80,7 @@ pixi run check       # lint + typecheck + test (what CI runs)
 ```
 
 The browser interface (`untappd.html`) loads `src/untappd_parser/` directly via
-PyScript, so editing `parser.py` or `web.py` needs no rebuild — just reload the page.
+Pyodide, so editing `parser.py` or `web.py` needs no rebuild — just reload the page.
 
 ## License
 MIT

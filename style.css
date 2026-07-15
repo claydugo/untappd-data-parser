@@ -4,12 +4,6 @@
 	box-sizing: border-box;
 }
 
-/* Fallback if the PyScript CDN stylesheet fails to load: never show raw config/code. */
-py-config,
-py-script {
-	display: none;
-}
-
 :root {
 	--primary-color: #328fa8;
 
@@ -278,7 +272,7 @@ input[type="file"] {
 	color: #a14b00;
 }
 
-#pyscript-loading-message {
+#loading-message {
 	text-align: center;
 	padding: 20px;
 	color: var(--primary-color);

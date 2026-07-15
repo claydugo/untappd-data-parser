@@ -389,7 +389,7 @@ def init_app():
         "change", create_proxy(on_split_change)
     )
 
-    document.getElementById("pyscript-loading-message").classList.add("hidden")
+    document.getElementById("loading-message").classList.add("hidden")
     document.getElementById("main-content").classList.remove("hidden")
 
-    console.log("PyScript initialized - using untappd_parser package!")
+    console.log("Pyodide initialized - using untappd_parser package!")

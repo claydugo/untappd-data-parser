@@ -14,11 +14,11 @@ license = "MIT"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: End Users/Desktop",
-    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Utilities",
 ]
 keywords = ["untappd", "beer", "data-analysis", "csv", "json"]
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 # The library is pure stdlib — no runtime dependencies. Dev tooling (ruff, mypy,
 # pytest) is managed by pixi from conda-forge, see pixi.toml.
 dependencies = []
@@ -62,7 +62,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# web.py runs under PyScript/Pyodide: `js`/`pyodide` are injected globals, and the
+# web.py runs under Pyodide: `js`/`pyodide` are injected globals, and the
 # event handlers must swallow broad exceptions to surface them in the browser UI.
 "src/untappd_parser/web.py" = ["BLE001", "S110"]
 
@@ -74,10 +74,10 @@ quote-style = "preserve"
 skip-magic-trailing-comma = false
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.14"
 files = ["src/untappd_parser"]
 # Pragmatic-strict: check everything we can and flag the bugs that matter, but
-# don't demand a full annotation pass on the PyScript glue on day one.
+# don't demand a full annotation pass on the Pyodide glue on day one.
 check_untyped_defs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
@@ -86,7 +86,7 @@ warn_return_any = true
 no_implicit_reexport = true
 extra_checks = true
 
-# PyScript/Pyodide runtime modules exist only in the browser; they ship no stubs.
+# Pyodide runtime modules exist only in the browser; they ship no stubs.
 [[tool.mypy.overrides]]
 module = ["js.*", "pyodide.*"]
 ignore_missing_imports = true
