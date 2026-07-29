@@ -194,8 +194,9 @@ class UntappdParser:
         return {"type": "FeatureCollection", "features": features}
 
     def save_geojson(self, data: list[dict[str, Any]], filename: str) -> None:
+        # indent=1 keeps refresh diffs readable when the file is committed to a site repo.
         with Path(filename).open("w", encoding="utf-8") as f:
-            json.dump(self.to_geojson(data), f, ensure_ascii=False)
+            json.dump(self.to_geojson(data), f, ensure_ascii=False, indent=1)
 
     def get_visit_distribution(self, data: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
         single_visit: list[dict[str, Any]] = []

@@ -305,7 +305,7 @@ def export_all_csv(event):
 def export_geojson(event):
     if app_state.has_data():
         download_file(
-            json.dumps(app_state.venues_geojson, ensure_ascii=False),
+            json.dumps(app_state.venues_geojson, ensure_ascii=False, indent=1),
             "venues.geojson",
             "application/geo+json",
         )
