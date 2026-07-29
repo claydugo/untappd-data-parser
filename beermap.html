@@ -215,17 +215,19 @@
 				mapLoaded = true;
 				let venues;
 				try {
-					const response = await fetch("./venues.geojson");
+					// ?data= lets an embedding page point at its own copy; CSP limits it to same-origin.
+					const dataUrl = new URLSearchParams(location.search).get("data") ?? "./venues.geojson";
+					const response = await fetch(dataUrl);
 					if (!response.ok) {
 						throw new Error(`HTTP ${response.status}`);
 					}
 					venues = await response.json();
 					if (!Array.isArray(venues?.features)) {
-						throw new Error("venues.geojson is not a FeatureCollection");
+						throw new Error("venue data is not a FeatureCollection");
 					}
 				} catch (error) {
 					console.error(error);
-					showError("Could not load venues.geojson");
+					showError("Could not load venue data");
 					return;
 				}
 
