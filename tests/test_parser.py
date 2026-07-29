@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from untappd_parser import UntappdParser, VenueLocation
+from untappd_parser.cli import main as cli_main
 
 
 def _checkin(beer, brewery, venue, lat, lng, created_at, **extra):
@@ -209,6 +210,70 @@ def test_split_by_visits_falls_back_to_single_csv_without_visit_counts(tmp_path,
 def test_stats_accept_precomputed_unique_entries(parser):
     unique_entries = parser.get_unique_entries("venue")
     assert parser.get_stats(unique_entries=unique_entries) == parser.get_stats()
+
+
+def test_to_geojson_builds_point_features(parser):
+    venues = parser.get_unique_entries("venue")
+    geojson = parser.to_geojson(venues)
+    assert geojson["type"] == "FeatureCollection"
+    tavern = next(f for f in geojson["features"] if f["properties"]["venue_name"] == "The Tavern")
+    # GeoJSON coordinate order is [longitude, latitude].
+    assert tavern["geometry"] == {"type": "Point", "coordinates": [-75.0, 40.0]}
+    assert tavern["properties"]["total_venue_checkins"] == 3
+    assert tavern["properties"]["first_checkin"] == "2024-01-01 18:00:00"
+    assert "checkin_id" not in tavern["properties"]
+    assert "venue_lat" not in tavern["properties"]
+
+
+def test_to_geojson_skips_entries_without_coordinates(parser):
+    data = [
+        _checkin("Homebrew", "Me", "My House", None, None, "2024-06-01 12:00:00"),
+        _checkin("Pliny", "Russian River", "The Tavern", 40.0, -75.0, "2024-01-01 18:00:00"),
+    ]
+    geojson = parser.to_geojson(data)
+    assert [f["properties"]["venue_name"] for f in geojson["features"]] == ["The Tavern"]
+
+
+def test_to_geojson_omits_null_properties(parser):
+    pub = next(v for v in parser.get_unique_entries("venue") if v["venue_name"] == "The Pub")
+    feature = parser.to_geojson([pub])["features"][0]
+    # A single visit has last_checkin None; the property must be absent, not null.
+    assert "last_checkin" not in feature["properties"]
+
+
+def test_to_geojson_coerces_strings_and_skips_non_finite(parser):
+    data = [
+        _checkin("Pliny", "Russian River", "The Tavern", "40.0", "-75.0", "2024-01-01 18:00:00"),
+        _checkin("Heady", "The Alchemist", "The Void", float("nan"), -76.0, "2024-01-02 18:00:00"),
+    ]
+    features = parser.to_geojson(data)["features"]
+    assert [f["properties"]["venue_name"] for f in features] == ["The Tavern"]
+    assert features[0]["geometry"]["coordinates"] == [-75.0, 40.0]
+
+
+def test_cli_geojson_keeps_dates_with_no_strip_backend(tmp_path, sample_data, monkeypatch):
+    # clean_data mutates entries in place under --no-strip-backend; the CLI must
+    # write the GeoJSON before cleaning or the check-in dates silently vanish.
+    export = tmp_path / "export.json"
+    export.write_text(json.dumps(sample_data), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "sys.argv", ["untappd-parser", str(export), "--geojson", "--no-strip-backend"]
+    )
+    cli_main()
+
+    geojson = json.loads((tmp_path / "export_unique_venue.geojson").read_text(encoding="utf-8"))
+    tavern = next(f for f in geojson["features"] if f["properties"]["venue_name"] == "The Tavern")
+    assert tavern["properties"]["first_checkin"] == "2024-01-01 18:00:00"
+    assert tavern["properties"]["last_checkin"] == "2024-03-01 18:00:00"
+
+
+def test_save_geojson_writes_file(tmp_path, parser):
+    venues = parser.get_unique_entries("venue")
+    path = tmp_path / "venues.geojson"
+    parser.save_geojson(venues, str(path))
+    geojson = json.loads(path.read_text(encoding="utf-8"))
+    assert len(geojson["features"]) == 3
 
 
 def test_save_files_writes_json_and_split_csvs(tmp_path, parser):

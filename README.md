@@ -46,6 +46,18 @@ This creates 3 separate CSV files:
 - `*_2-4_visits.csv` - venues with 2-4 visits
 - `*_5+_visits.csv` - venues with 5 or more visits
 
+#### Export a GeoJSON venue map (for beermap.html)
+```bash
+untappd-parser <UNTAPPD-DATA>.json --geojson
+```
+
+This writes `*_unique_venue.geojson`, a FeatureCollection with one point per
+venue. Each feature carries the venue name, beer, brewery, beer type, visit
+count, and first/last check-in dates. `beermap.html` renders this file with
+[MapLibre GL](https://maplibre.org) on [OpenFreeMap](https://openfreemap.org)
+tiles: copy `beermap.html` and the GeoJSON (renamed to `venues.geojson`) into
+one directory on any static host.
+
 ##### Additional Flags
 
 - `--no-human-keys` - Keep original snake_case keys (e.g. `venue_name` instead of `Venue Name`)

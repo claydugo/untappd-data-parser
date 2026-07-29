@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -154,6 +155,47 @@ class UntappdParser:
     @staticmethod
     def _humanize_keys(data: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [{k.replace("_", " ").title(): v for k, v in entry.items()} for entry in data]
+
+    def to_geojson(self, data: list[dict[str, Any]]) -> dict[str, Any]:
+        features = []
+        for entry in data:
+            latitude = entry.get("venue_lat")
+            longitude = entry.get("venue_lng")
+            if latitude is None or longitude is None:
+                continue
+            # NaN would serialize as a bare token JSON.parse rejects; coerce and skip.
+            try:
+                latitude = float(latitude)
+                longitude = float(longitude)
+            except (TypeError, ValueError):
+                continue
+            if not (math.isfinite(latitude) and math.isfinite(longitude)):
+                continue
+            properties = {
+                key: entry[key]
+                for key in (
+                    "venue_name",
+                    "beer_name",
+                    "brewery_name",
+                    "beer_type",
+                    "total_venue_checkins",
+                    "first_checkin",
+                    "last_checkin",
+                )
+                if entry.get(key) is not None
+            }
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [longitude, latitude]},
+                    "properties": properties,
+                }
+            )
+        return {"type": "FeatureCollection", "features": features}
+
+    def save_geojson(self, data: list[dict[str, Any]], filename: str) -> None:
+        with Path(filename).open("w", encoding="utf-8") as f:
+            json.dump(self.to_geojson(data), f, ensure_ascii=False)
 
     def get_visit_distribution(self, data: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
         single_visit: list[dict[str, Any]] = []

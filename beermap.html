@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>Beer Map</title>
+		<meta
+			http-equiv="Content-Security-Policy"
+			content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://tiles.openfreemap.org; img-src 'self' data: blob:; worker-src blob: https://cdn.jsdelivr.net; child-src blob: https://cdn.jsdelivr.net; font-src 'self' data:;"
+		>
+		<link rel="preconnect" href="https://cdn.jsdelivr.net">
+		<link rel="preconnect" href="https://tiles.openfreemap.org">
+		<!--
+			The import map must precede the modulepreload links. On MapLibre upgrades,
+			update the version and hashes here and in the map script together.
+		-->
+		<script type="importmap">
+		{
+			"integrity": {
+				"https://cdn.jsdelivr.net/npm/maplibre-gl@6.0.0/dist/maplibre-gl.mjs": "sha384-o0HSfwnZ3xgly1lTfmbCNdcKcrVf90axLIhCivtv4Jwg8TEr7CJkzuZORZzyyTrd",
+				"https://cdn.jsdelivr.net/npm/maplibre-gl@6.0.0/dist/maplibre-gl-shared.mjs": "sha384-aHu4OL47vGZcFCmoNz74WH3dXW8SVwMMIsouH6aVLWMlp7aRDAXBjCe+UVzGGz4+"
+			}
+		}
+		</script>
+		<link
+			rel="modulepreload"
+			href="https://cdn.jsdelivr.net/npm/maplibre-gl@6.0.0/dist/maplibre-gl.mjs"
+			integrity="sha384-o0HSfwnZ3xgly1lTfmbCNdcKcrVf90axLIhCivtv4Jwg8TEr7CJkzuZORZzyyTrd"
+			crossorigin="anonymous"
+		>
+		<link
+			rel="modulepreload"
+			href="https://cdn.jsdelivr.net/npm/maplibre-gl@6.0.0/dist/maplibre-gl-shared.mjs"
+			integrity="sha384-aHu4OL47vGZcFCmoNz74WH3dXW8SVwMMIsouH6aVLWMlp7aRDAXBjCe+UVzGGz4+"
+			crossorigin="anonymous"
+		>
+		<link
+			rel="stylesheet"
+			href="https://cdn.jsdelivr.net/npm/maplibre-gl@6.0.0/dist/maplibre-gl.css"
+			integrity="sha384-zQW/aoM779xpmLohKxjpi3B0MrGyt7GfcBEOcLsAF5JOXTWlJqV9iiC8KuMQVRSG"
+			crossorigin="anonymous"
+		>
+		<style>
+			html,
+			body {
+				height: 100%;
+				margin: 0;
+			}
+			#map {
+				height: 100%;
+			}
+			.legend {
+				position: absolute;
+				bottom: 24px;
+				left: 12px;
+				z-index: 1;
+				background: rgba(255, 255, 255, 0.92);
+				border-radius: 6px;
+				box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+				padding: 8px 12px;
+				font-family: system-ui, -apple-system, sans-serif;
+				font-size: 13px;
+				color: #333;
+			}
+			.legend-title {
+				font-weight: 600;
+				margin-bottom: 4px;
+			}
+			.legend-row {
+				display: flex;
+				align-items: center;
+				gap: 6px;
+				line-height: 1.6;
+			}
+			.legend-dot {
+				border-radius: 50%;
+				border: 1.5px solid #fff;
+				box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+			}
+			.map-error {
+				position: absolute;
+				top: 12px;
+				left: 50%;
+				transform: translateX(-50%);
+				z-index: 2;
+				background: #b71c1c;
+				color: #fff;
+				border-radius: 6px;
+				padding: 8px 16px;
+				font-family: system-ui, -apple-system, sans-serif;
+				font-size: 14px;
+			}
+			.maplibregl-popup-content {
+				font-family: system-ui, -apple-system, sans-serif;
+				font-size: 13px;
+				line-height: 1.5;
+				padding: 10px 14px;
+			}
+			.popup-venue {
+				font-weight: 600;
+				font-size: 14px;
+				margin-bottom: 2px;
+			}
+			.popup-muted {
+				color: #666;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="map"></div>
+		<div class="legend">
+			<div class="legend-title">Visits</div>
+			<div class="legend-row">
+				<span class="legend-dot" style="width: 12px; height: 12px; background: #F59E0B;"></span>
+				1 visit
+			</div>
+			<div class="legend-row">
+				<span class="legend-dot" style="width: 15px; height: 15px; background: #EA580C;"></span>
+				2&ndash;4 visits
+			</div>
+			<div class="legend-row">
+				<span class="legend-dot" style="width: 18px; height: 18px; background: #9A3412;"></span>
+				5+ visits
+			</div>
+		</div>
+		<script type="module">
+			import * as maplibregl from "https://cdn.jsdelivr.net/npm/maplibre-gl@6.0.0/dist/maplibre-gl.mjs";
+
+			const map = new maplibregl.Map({
+				container: "map",
+				style: "https://tiles.openfreemap.org/styles/positron",
+				center: [-95, 38],
+				zoom: 3,
+			});
+			map.addControl(new maplibregl.NavigationControl(), "top-right");
+			map.addControl(new maplibregl.FullscreenControl(), "top-right");
+			// Exposed for driving the map from Playwright.
+			window.beermap = map;
+
+			function showError(message) {
+				if (document.querySelector(".map-error")) {
+					return;
+				}
+				const banner = document.createElement("div");
+				banner.className = "map-error";
+				banner.textContent = message;
+				document.body.appendChild(banner);
+			}
+
+			function formatDate(raw) {
+				const date = new Date(raw.replace(" ", "T"));
+				if (Number.isNaN(date.getTime())) {
+					return raw;
+				}
+				return date.toLocaleDateString("en-US", {
+					year: "numeric",
+					month: "long",
+					day: "numeric",
+				});
+			}
+
+			function popupContent(properties) {
+				const container = document.createElement("div");
+
+				const venue = document.createElement("div");
+				venue.className = "popup-venue";
+				venue.textContent = properties.venue_name ?? "Unknown venue";
+				container.appendChild(venue);
+
+				const beerParts = [properties.beer_name, properties.brewery_name].filter(Boolean);
+				if (beerParts.length > 0) {
+					const beer = document.createElement("div");
+					beer.textContent = beerParts.join(" · ");
+					container.appendChild(beer);
+				}
+
+				if (properties.beer_type) {
+					const style = document.createElement("div");
+					style.className = "popup-muted";
+					style.textContent = properties.beer_type;
+					container.appendChild(style);
+				}
+
+				const visits = properties.total_venue_checkins ?? 1;
+				const visitLine = document.createElement("div");
+				visitLine.textContent = `${visits} ${visits === 1 ? "visit" : "visits"}`;
+				container.appendChild(visitLine);
+
+				if (properties.first_checkin) {
+					const first = document.createElement("div");
+					first.className = "popup-muted";
+					first.textContent = `First: ${formatDate(properties.first_checkin)}`;
+					container.appendChild(first);
+				}
+				if (properties.last_checkin) {
+					const last = document.createElement("div");
+					last.className = "popup-muted";
+					last.textContent = `Last: ${formatDate(properties.last_checkin)}`;
+					container.appendChild(last);
+				}
+
+				return container;
+			}
+
+			let mapLoaded = false;
+			// Source/tile errors carry sourceId; a bare error before "load" is a style failure.
+			map.on("error", (event) => {
+				console.error(event.error);
+				if (!mapLoaded && !event.sourceId) {
+					showError("Could not load the base map");
+				}
+			});
+
+			map.on("load", async () => {
+				mapLoaded = true;
+				let venues;
+				try {
+					const response = await fetch("./venues.geojson");
+					if (!response.ok) {
+						throw new Error(`HTTP ${response.status}`);
+					}
+					venues = await response.json();
+					if (!Array.isArray(venues?.features)) {
+						throw new Error("venues.geojson is not a FeatureCollection");
+					}
+				} catch (error) {
+					console.error(error);
+					showError("Could not load venues.geojson");
+					return;
+				}
+
+				map.addSource("venues", {
+					type: "geojson",
+					data: venues,
+					cluster: true,
+					clusterMaxZoom: 11,
+					clusterRadius: 45,
+				});
+
+				map.addLayer({
+					id: "clusters",
+					type: "circle",
+					source: "venues",
+					filter: ["has", "point_count"],
+					paint: {
+						"circle-color": "#37474F",
+						"circle-radius": ["step", ["get", "point_count"], 14, 10, 18, 50, 24],
+						"circle-stroke-width": 1.5,
+						"circle-stroke-color": "#ffffff",
+					},
+				});
+
+				map.addLayer({
+					id: "cluster-counts",
+					type: "symbol",
+					source: "venues",
+					filter: ["has", "point_count"],
+					layout: {
+						"text-field": ["get", "point_count_abbreviated"],
+						"text-font": ["Noto Sans Regular"],
+						"text-size": 12,
+					},
+					paint: {
+						"text-color": "#ffffff",
+					},
+				});
+
+				map.addLayer({
+					id: "venue-points",
+					type: "circle",
+					source: "venues",
+					filter: ["!", ["has", "point_count"]],
+					paint: {
+						"circle-color": [
+							"step",
+							["coalesce", ["get", "total_venue_checkins"], 1],
+							"#F59E0B",
+							2,
+							"#EA580C",
+							5,
+							"#9A3412",
+						],
+						"circle-radius": [
+							"step",
+							["coalesce", ["get", "total_venue_checkins"], 1],
+							6,
+							2,
+							7.5,
+							5,
+							9,
+						],
+						"circle-stroke-width": 1.5,
+						"circle-stroke-color": "#ffffff",
+					},
+				});
+
+				const bounds = new maplibregl.LngLatBounds();
+				for (const feature of venues.features) {
+					bounds.extend(feature.geometry.coordinates);
+				}
+				if (!bounds.isEmpty()) {
+					map.fitBounds(bounds, { padding: 48, maxZoom: 10 });
+				}
+
+				map.on("click", "clusters", async (event) => {
+					const feature = event.features[0];
+					let zoom;
+					try {
+						zoom = await map
+							.getSource("venues")
+							.getClusterExpansionZoom(feature.properties.cluster_id);
+					} catch (error) {
+						console.error(error);
+						return;
+					}
+					map.easeTo({ center: feature.geometry.coordinates, zoom });
+				});
+
+				// Keep the default double-click zoom from interrupting cluster expansion.
+				map.on("dblclick", "clusters", (event) => {
+					event.preventDefault();
+				});
+
+				map.on("click", "venue-points", (event) => {
+					const feature = event.features[0];
+					new maplibregl.Popup({ maxWidth: "320px" })
+						.setLngLat(feature.geometry.coordinates)
+						.setDOMContent(popupContent(feature.properties))
+						.addTo(map);
+				});
+
+				for (const layer of ["clusters", "venue-points"]) {
+					map.on("mouseenter", layer, () => {
+						map.getCanvas().style.cursor = "pointer";
+					});
+					map.on("mouseleave", layer, () => {
+						map.getCanvas().style.cursor = "";
+					});
+				}
+			});
+		</script>
+	</body>
+</html>

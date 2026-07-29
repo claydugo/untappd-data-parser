@@ -13,12 +13,14 @@ class AppState:
     def __init__(self):
         self.parser = None
         self.processed_venues = None
+        self.venues_geojson = None
         self.cleaned_data = None
         self.alert_timer = None
 
     def reset(self):
         self.parser = None
         self.processed_venues = None
+        self.venues_geojson = None
         self.cleaned_data = None
 
     def has_data(self):
@@ -114,6 +116,8 @@ def process_file(file_content):
 
         app_state.parser = UntappdParser(data=data)
         app_state.processed_venues = app_state.parser.get_unique_entries("venue")
+        # clean_data mutates the venue dicts in place; capture the GeoJSON first.
+        app_state.venues_geojson = app_state.parser.to_geojson(app_state.processed_venues)
         app_state.cleaned_data = app_state.parser.clean_data(
             app_state.processed_venues,
             strip_backend=strip_backend,
@@ -298,6 +302,15 @@ def export_all_csv(event):
         download_file(csv_content, "venues_all.csv", "text/csv")
 
 
+def export_geojson(event):
+    if app_state.has_data():
+        download_file(
+            json.dumps(app_state.venues_geojson, ensure_ascii=False),
+            "venues.geojson",
+            "application/geo+json",
+        )
+
+
 def export_1_visit(event):
     if not app_state.has_data():
         return
@@ -374,6 +387,9 @@ def init_app():
     document.getElementById("exportAllBtn").addEventListener("click", create_proxy(export_all))
     document.getElementById("exportAllCSVBtn").addEventListener(
         "click", create_proxy(export_all_csv)
+    )
+    document.getElementById("exportGeoJSONBtn").addEventListener(
+        "click", create_proxy(export_geojson)
     )
     document.getElementById("export1Btn").addEventListener("click", create_proxy(export_1_visit))
     document.getElementById("export24Btn").addEventListener(

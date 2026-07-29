@@ -25,6 +25,11 @@ def main() -> None:
         action="store_true",
         help="Split venue CSV exports by visit count distribution (1, 2-4, 5+)",
     )
+    parser.add_argument(
+        "--geojson",
+        action="store_true",
+        help="Also write a GeoJSON FeatureCollection of unique venues (for beermap.html)",
+    )
 
     args = parser.parse_args()
 
@@ -41,9 +46,25 @@ def main() -> None:
         )
         split_by_visits = False
 
+    geojson = args.geojson
+    if geojson and args.key != "venue":
+        print(
+            f"Warning: --geojson only applies to --key venue; "
+            f"skipping GeoJSON for key '{args.key}'",
+            file=sys.stderr,
+        )
+        geojson = False
+
     try:
         untappd = UntappdParser(filename=args.file)
         unique_entries = untappd.get_unique_entries(args.key)
+
+        base_filename = f"{Path(args.file).stem}_unique_{args.key}"
+
+        # clean_data mutates entries in place under --no-strip-backend; save GeoJSON first.
+        if geojson:
+            untappd.save_geojson(unique_entries, f"{base_filename}.geojson")
+            print(f"GeoJSON saved to {base_filename}.geojson")
 
         cleaned_data = untappd.clean_data(
             unique_entries,
@@ -52,8 +73,6 @@ def main() -> None:
             human_keys=not args.no_human_keys,
             preserve_keys={args.key},
         )
-
-        base_filename = f"{Path(args.file).stem}_unique_{args.key}"
         untappd.save_files(cleaned_data, base_filename, split_by_visits=split_by_visits)
 
         stats = untappd.get_stats(args.key, unique_entries=unique_entries)
