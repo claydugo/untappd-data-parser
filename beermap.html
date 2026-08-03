@@ -41,6 +41,43 @@
 			crossorigin="anonymous"
 		>
 		<style>
+			:root {
+				--panel-bg: rgba(255, 255, 255, 0.92);
+				--panel-text: #333;
+				--panel-muted: #666;
+				--accent: #EA580C;
+			}
+			@media (prefers-color-scheme: dark) {
+				:root {
+					--panel-bg: rgba(28, 28, 28, 0.92);
+					--panel-text: #eee;
+					--panel-muted: #aaa;
+					--accent: #F59E0B;
+				}
+				.maplibregl-popup-content {
+					background: #262626;
+					color: #eee;
+				}
+				.maplibregl-popup-close-button {
+					color: #eee;
+				}
+				.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+				.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+				.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+					border-top-color: #262626;
+				}
+				.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+				.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+				.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+					border-bottom-color: #262626;
+				}
+				.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+					border-right-color: #262626;
+				}
+				.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+					border-left-color: #262626;
+				}
+			}
 			html,
 			body {
 				height: 100%;
@@ -49,18 +86,55 @@
 			#map {
 				height: 100%;
 			}
+			/* .view-toggle and .time-control set display, which beats the UA hidden rule. */
+			[hidden] {
+				display: none !important;
+			}
+			.panel {
+				background: var(--panel-bg);
+				border-radius: 6px;
+				box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+				font-family: system-ui, -apple-system, sans-serif;
+				font-size: 13px;
+				color: var(--panel-text);
+			}
+			.top-left {
+				position: absolute;
+				top: 12px;
+				left: 12px;
+				z-index: 1;
+				display: flex;
+				flex-direction: column;
+				align-items: flex-start;
+				gap: 8px;
+			}
+			.stats {
+				padding: 8px 12px;
+			}
+			.view-toggle {
+				display: flex;
+				gap: 4px;
+				padding: 4px;
+			}
+			.view-toggle button {
+				border: none;
+				background: transparent;
+				color: var(--panel-text);
+				font: inherit;
+				padding: 4px 10px;
+				border-radius: 4px;
+				cursor: pointer;
+			}
+			.view-toggle button.active {
+				background: var(--accent);
+				color: #fff;
+			}
 			.legend {
 				position: absolute;
 				bottom: 24px;
 				left: 12px;
 				z-index: 1;
-				background: rgba(255, 255, 255, 0.92);
-				border-radius: 6px;
-				box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 				padding: 8px 12px;
-				font-family: system-ui, -apple-system, sans-serif;
-				font-size: 13px;
-				color: #333;
 			}
 			.legend-title {
 				font-weight: 600;
@@ -76,6 +150,32 @@
 				border-radius: 50%;
 				border: 1.5px solid #fff;
 				box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+			}
+			.time-control {
+				position: absolute;
+				bottom: 24px;
+				left: 50%;
+				transform: translateX(-50%);
+				z-index: 1;
+				display: flex;
+				align-items: center;
+				gap: 8px;
+				padding: 8px 12px;
+			}
+			.time-control button {
+				border: none;
+				background: transparent;
+				color: var(--panel-text);
+				font-size: 14px;
+				padding: 2px 4px;
+				cursor: pointer;
+			}
+			.time-control input[type="range"] {
+				width: min(40vw, 240px);
+				accent-color: var(--accent);
+			}
+			.time-control .time-label {
+				min-width: 132px;
 			}
 			.map-error {
 				position: absolute;
@@ -102,40 +202,154 @@
 				margin-bottom: 2px;
 			}
 			.popup-muted {
-				color: #666;
+				color: var(--panel-muted);
+			}
+			/* A hover popup under the cursor would steal the click and flicker on mouseleave. */
+			.hover-popup {
+				pointer-events: none;
 			}
 		</style>
 	</head>
 	<body>
 		<div id="map"></div>
-		<div class="legend">
-			<div class="legend-title">Visits</div>
+		<div class="top-left">
+			<div class="panel stats" id="stats" hidden></div>
+			<div class="panel view-toggle" id="view-toggle" hidden>
+				<button id="bubbles-button" class="active" type="button">Bubbles</button>
+				<button id="heatmap-button" type="button">Heatmap</button>
+			</div>
+			<div class="panel view-toggle" id="metric-toggle" hidden>
+				<button id="metric-checkins" class="active" type="button">Check-ins</button>
+				<button id="metric-beers" type="button">Beers</button>
+				<button id="metric-abv" type="button">ABV</button>
+			</div>
+		</div>
+		<div class="panel legend" id="legend" hidden>
+			<div class="legend-title" id="legend-title">Check-ins</div>
 			<div class="legend-row">
-				<span class="legend-dot" style="width: 12px; height: 12px; background: #F59E0B;"></span>
-				1 visit
+				<span class="legend-dot" id="legend-dot-1" style="width: 16px; height: 16px; background: #F59E0B;"></span>
+				<span id="legend-label-1">1 check-in</span>
 			</div>
 			<div class="legend-row">
-				<span class="legend-dot" style="width: 15px; height: 15px; background: #EA580C;"></span>
-				2&ndash;4 visits
+				<span class="legend-dot" id="legend-dot-2" style="width: 20px; height: 20px; background: #EA580C;"></span>
+				<span id="legend-label-2">2&ndash;4 check-ins</span>
 			</div>
 			<div class="legend-row">
-				<span class="legend-dot" style="width: 18px; height: 18px; background: #9A3412;"></span>
-				5+ visits
+				<span class="legend-dot" id="legend-dot-3" style="width: 25px; height: 25px; background: #9A3412;"></span>
+				<span id="legend-label-3">5+ check-ins</span>
 			</div>
+		</div>
+		<div class="panel time-control" id="time-control" hidden>
+			<button id="play-button" type="button" aria-label="Play">&#9654;</button>
+			<input id="time-slider" type="range" min="0" max="0" value="0" aria-label="Check-in date cutoff">
+			<span class="time-label" id="time-label">All check-ins</span>
 		</div>
 		<script type="module">
 			import * as maplibregl from "https://cdn.jsdelivr.net/npm/maplibre-gl@6.0.0/dist/maplibre-gl.mjs";
 
+			const darkScheme = matchMedia("(prefers-color-scheme: dark)");
+			// Amber ramps: light validated on the Liberty basemap, dark against
+			// the dark style surface (#0c0c0c). Bucket order is 1, 2-4, 5+.
+			const themes = {
+				light: {
+					style: "https://tiles.openfreemap.org/styles/liberty",
+					buckets: ["#F59E0B", "#EA580C", "#9A3412"],
+					cluster: "#37474F",
+					heat: [0, "rgba(245, 158, 11, 0)", 0.15, "#FDE68A", 0.4, "#F59E0B", 0.7, "#EA580C", 1, "#9A3412"],
+				},
+				dark: {
+					style: "https://tiles.openfreemap.org/styles/dark",
+					buckets: ["#D97706", "#F59E0B", "#FCD34D"],
+					cluster: "#546E7A",
+					heat: [0, "rgba(217, 119, 6, 0)", 0.15, "#92400E", 0.4, "#D97706", 0.7, "#F59E0B", 1, "#FCD34D"],
+				},
+			};
+			function currentTheme() {
+				return darkScheme.matches ? themes.dark : themes.light;
+			}
+
+			// hash: true restores a shared or reloaded view; skip fitBounds then.
+			const startedWithHash = location.hash.length > 1;
 			const map = new maplibregl.Map({
 				container: "map",
-				style: "https://tiles.openfreemap.org/styles/liberty",
+				style: currentTheme().style,
 				center: [-95, 38],
 				zoom: 3,
+				hash: true,
 			});
 			map.addControl(new maplibregl.NavigationControl(), "top-right");
 			map.addControl(new maplibregl.FullscreenControl(), "top-right");
 			// Exposed for driving the map from Playwright.
 			window.beermap = map;
+
+			const statsElement = document.getElementById("stats");
+			const viewToggleElement = document.getElementById("view-toggle");
+			const bubblesButton = document.getElementById("bubbles-button");
+			const heatmapButton = document.getElementById("heatmap-button");
+			const metricToggleElement = document.getElementById("metric-toggle");
+			const metricButtons = {
+				checkins: document.getElementById("metric-checkins"),
+				beers: document.getElementById("metric-beers"),
+				abv: document.getElementById("metric-abv"),
+			};
+			const legendElement = document.getElementById("legend");
+			const timeControlElement = document.getElementById("time-control");
+			const playButton = document.getElementById("play-button");
+			const timeSlider = document.getElementById("time-slider");
+			const timeLabel = document.getElementById("time-label");
+
+			let canonicalFeatures = [];
+			let filteredCollection = null;
+			const propertiesById = new Map();
+			let viewMode = "bubbles";
+			let timeline = null;
+			let playTimer = null;
+
+			const metrics = {
+				checkins: {
+					key: "total_venue_checkins",
+					thresholds: [2, 5],
+					legendTitle: "Check-ins",
+					legendRows: ["1 check-in", "2–4 check-ins", "5+ check-ins"],
+				},
+				beers: {
+					key: "unique_beers",
+					thresholds: [2, 5],
+					legendTitle: "Unique beers",
+					legendRows: ["1 beer", "2–4 beers", "5+ beers"],
+				},
+				abv: {
+					key: "average_abv",
+					thresholds: [5, 7],
+					legendTitle: "Avg ABV",
+					legendRows: ["Under 5%", "5–7%", "7%+"],
+				},
+			};
+			let activeMetric = "checkins";
+
+			function bubblePaint(theme) {
+				const metric = metrics[activeMetric];
+				return {
+					"circle-color": [
+						"step",
+						["coalesce", ["get", metric.key], 1],
+						theme.buckets[0],
+						metric.thresholds[0],
+						theme.buckets[1],
+						metric.thresholds[1],
+						theme.buckets[2],
+					],
+					"circle-radius": [
+						"step",
+						["coalesce", ["get", metric.key], 1],
+						8,
+						metric.thresholds[0],
+						10,
+						metric.thresholds[1],
+						12.5,
+					],
+				};
+			}
 
 			function showError(message) {
 				if (document.querySelector(".map-error")) {
@@ -147,8 +361,15 @@
 				document.body.appendChild(banner);
 			}
 
+			// A bare YYYY-MM-DD parses as UTC midnight, which renders as the previous
+			// day in western timezones; force local time.
+			function parseLocalDate(raw) {
+				const text = String(raw).replace(" ", "T");
+				return new Date(text.includes("T") ? text : `${text}T00:00:00`);
+			}
+
 			function formatDate(raw) {
-				const date = new Date(raw.replace(" ", "T"));
+				const date = parseLocalDate(raw);
 				if (Number.isNaN(date.getTime())) {
 					return raw;
 				}
@@ -159,6 +380,10 @@
 				});
 			}
 
+			function countNoun(count, singular, plural = `${singular}s`) {
+				return `${count.toLocaleString("en-US")} ${count === 1 ? singular : plural}`;
+			}
+
 			function popupContent(properties) {
 				const container = document.createElement("div");
 
@@ -167,24 +392,55 @@
 				venue.textContent = properties.venue_name ?? "Unknown venue";
 				container.appendChild(venue);
 
-				const beerParts = [properties.beer_name, properties.brewery_name].filter(Boolean);
-				if (beerParts.length > 0) {
-					const beer = document.createElement("div");
-					beer.textContent = beerParts.join(" · ");
-					container.appendChild(beer);
+				const locationParts = [
+					properties.venue_city,
+					properties.venue_state,
+					properties.venue_country,
+				].filter(Boolean);
+				if (locationParts.length > 0) {
+					const place = document.createElement("div");
+					place.className = "popup-muted";
+					place.textContent = locationParts.join(", ");
+					container.appendChild(place);
 				}
 
-				if (properties.beer_type) {
-					const style = document.createElement("div");
-					style.className = "popup-muted";
-					style.textContent = properties.beer_type;
-					container.appendChild(style);
+				if (properties.last_beer_name) {
+					const lastBeer = document.createElement("div");
+					const beerParts = [properties.last_beer_name, properties.last_beer_brewery].filter(Boolean);
+					const label = (properties.total_venue_checkins ?? 1) > 1 ? "Last beer" : "Beer";
+					lastBeer.textContent = `${label}: ${beerParts.join(" · ")}`;
+					container.appendChild(lastBeer);
 				}
 
-				const visits = properties.total_venue_checkins ?? 1;
-				const visitLine = document.createElement("div");
-				visitLine.textContent = `${visits} ${visits === 1 ? "visit" : "visits"}`;
-				container.appendChild(visitLine);
+				const countParts = [countNoun(properties.total_venue_checkins ?? 1, "check-in")];
+				if (properties.unique_beers) {
+					countParts.push(countNoun(properties.unique_beers, "beer"));
+				}
+				if (properties.unique_breweries) {
+					countParts.push(countNoun(properties.unique_breweries, "brewery", "breweries"));
+				}
+				if (properties.average_abv) {
+					countParts.push(`${properties.average_abv}% avg ABV`);
+				}
+				const counts = document.createElement("div");
+				counts.textContent = countParts.join(" · ");
+				container.appendChild(counts);
+
+				// Rendered features carry arrays as JSON strings; canonical ones as arrays.
+				let topStyles = properties.top_styles;
+				if (typeof topStyles === "string") {
+					try {
+						topStyles = JSON.parse(topStyles);
+					} catch {
+						topStyles = null;
+					}
+				}
+				if (Array.isArray(topStyles) && topStyles.length > 0) {
+					const styles = document.createElement("div");
+					styles.className = "popup-muted";
+					styles.textContent = topStyles.join(" · ");
+					container.appendChild(styles);
+				}
 
 				if (properties.first_checkin) {
 					const first = document.createElement("div");
@@ -202,6 +458,297 @@
 				return container;
 			}
 
+			function parseCheckinTime(raw) {
+				const time = parseLocalDate(raw).getTime();
+				return Number.isFinite(time) ? time : null;
+			}
+
+			function prepareFeatures(venues) {
+				canonicalFeatures = venues.features
+					.filter((feature) => Array.isArray(feature?.geometry?.coordinates))
+					.map((feature, index) => {
+						feature.properties = { ...feature.properties, venue_id: index };
+						// Only checkin_dates drives the timeline. A file from before that
+						// field existed gets no slider instead of counts fabricated from
+						// the first/last dates.
+						const dates = Array.isArray(feature.properties.checkin_dates)
+							? feature.properties.checkin_dates
+							: [];
+						const times = dates
+							.filter(Boolean)
+							.map(parseCheckinTime)
+							.filter((time) => time !== null)
+							.sort((a, b) => a - b);
+						return { feature, times };
+					});
+			}
+
+			function applyCutoff(cutoffMs) {
+				const features = [];
+				propertiesById.clear();
+				for (const { feature, times } of canonicalFeatures) {
+					let visibleCheckins;
+					if (cutoffMs === Infinity || times.length === 0) {
+						visibleCheckins = feature.properties.total_venue_checkins
+							?? Math.max(times.length, 1);
+					} else {
+						visibleCheckins = times.filter((time) => time <= cutoffMs).length;
+						if (visibleCheckins === 0) {
+							continue;
+						}
+					}
+					const properties = { ...feature.properties, total_venue_checkins: visibleCheckins };
+					delete properties.checkin_dates;
+					propertiesById.set(properties.venue_id, properties);
+					features.push({ type: "Feature", geometry: feature.geometry, properties });
+				}
+				filteredCollection = { type: "FeatureCollection", features };
+				map.getSource("venues")?.setData(filteredCollection);
+				map.getSource("venues-heat")?.setData(filteredCollection);
+				updateStats();
+			}
+
+			function updateStats() {
+				let checkins = 0;
+				const states = new Set();
+				const countries = new Set();
+				for (const feature of filteredCollection.features) {
+					checkins += feature.properties.total_venue_checkins ?? 1;
+					// Foreign provinces also live in venue_state, and D.C. is not a state.
+					if (
+						feature.properties.venue_state
+						&& feature.properties.venue_state !== "D.C."
+						&& feature.properties.venue_country === "United States"
+					) {
+						states.add(feature.properties.venue_state);
+					}
+					if (feature.properties.venue_country) {
+						countries.add(feature.properties.venue_country);
+					}
+				}
+				const parts = [
+					countNoun(filteredCollection.features.length, "venue"),
+					countNoun(checkins, "check-in"),
+				];
+				if (states.size > 0) {
+					parts.push(countNoun(states.size, "state"));
+				}
+				if (countries.size > 0) {
+					parts.push(countNoun(countries.size, "country", "countries"));
+				}
+				statsElement.textContent = parts.join(" · ");
+				statsElement.hidden = false;
+			}
+
+			function updateLegend() {
+				const theme = currentTheme();
+				const metric = metrics[activeMetric];
+				document.getElementById("legend-title").textContent = metric.legendTitle;
+				for (const row of [1, 2, 3]) {
+					document.getElementById(`legend-dot-${row}`).style.background = theme.buckets[row - 1];
+					document.getElementById(`legend-label-${row}`).textContent = metric.legendRows[row - 1];
+				}
+			}
+
+			function setMetric(name) {
+				activeMetric = name;
+				for (const [metricName, button] of Object.entries(metricButtons)) {
+					button.classList.toggle("active", metricName === name);
+				}
+				if (map.getLayer("venue-points")) {
+					const paint = bubblePaint(currentTheme());
+					map.setPaintProperty("venue-points", "circle-color", paint["circle-color"]);
+					map.setPaintProperty("venue-points", "circle-radius", paint["circle-radius"]);
+				}
+				updateLegend();
+			}
+			for (const [metricName, button] of Object.entries(metricButtons)) {
+				button.addEventListener("click", () => setMetric(metricName));
+			}
+
+			function addMapData() {
+				if (map.getSource("venues")) {
+					return;
+				}
+				const theme = currentTheme();
+				map.addSource("venues", {
+					type: "geojson",
+					data: filteredCollection,
+					cluster: true,
+					clusterMaxZoom: 11,
+					clusterRadius: 45,
+					clusterProperties: {
+						checkins: ["+", ["coalesce", ["get", "total_venue_checkins"], 1]],
+					},
+				});
+				map.addSource("venues-heat", { type: "geojson", data: filteredCollection });
+
+				map.addLayer({
+					id: "venue-heat",
+					type: "heatmap",
+					source: "venues-heat",
+					layout: { visibility: viewMode === "heatmap" ? "visible" : "none" },
+					paint: {
+						"heatmap-weight": [
+							"min",
+							1,
+							["/", ["coalesce", ["get", "total_venue_checkins"], 1], 8],
+						],
+						"heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 0.8, 12, 3],
+						"heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 6, 12, 36],
+						"heatmap-color": ["interpolate", ["linear"], ["heatmap-density"], ...theme.heat],
+						"heatmap-opacity": 0.85,
+					},
+				});
+
+				const bubbleVisibility = viewMode === "bubbles" ? "visible" : "none";
+				map.addLayer({
+					id: "clusters",
+					type: "circle",
+					source: "venues",
+					filter: ["has", "point_count"],
+					layout: { visibility: bubbleVisibility },
+					paint: {
+						"circle-color": theme.cluster,
+						// Cluster size tracks summed check-ins, not venue count.
+						"circle-radius": ["step", ["get", "checkins"], 14, 25, 18, 100, 24],
+						"circle-stroke-width": 1.5,
+						"circle-stroke-color": "#ffffff",
+					},
+				});
+
+				map.addLayer({
+					id: "cluster-counts",
+					type: "symbol",
+					source: "venues",
+					filter: ["has", "point_count"],
+					layout: {
+						visibility: bubbleVisibility,
+						"text-field": ["get", "point_count_abbreviated"],
+						"text-font": ["Noto Sans Regular"],
+						"text-size": 12,
+					},
+					paint: {
+						"text-color": "#ffffff",
+					},
+				});
+
+				map.addLayer({
+					id: "venue-points",
+					type: "circle",
+					source: "venues",
+					filter: ["!", ["has", "point_count"]],
+					layout: { visibility: bubbleVisibility },
+					paint: {
+						...bubblePaint(theme),
+						"circle-stroke-width": 1.5,
+						"circle-stroke-color": "#ffffff",
+					},
+				});
+			}
+
+			function setViewMode(mode) {
+				viewMode = mode;
+				bubblesButton.classList.toggle("active", mode === "bubbles");
+				heatmapButton.classList.toggle("active", mode === "heatmap");
+				legendElement.hidden = mode !== "bubbles";
+				metricToggleElement.hidden = mode !== "bubbles" || !filteredCollection;
+				const bubbleVisibility = mode === "bubbles" ? "visible" : "none";
+				for (const layer of ["clusters", "cluster-counts", "venue-points"]) {
+					if (map.getLayer(layer)) {
+						map.setLayoutProperty(layer, "visibility", bubbleVisibility);
+					}
+				}
+				if (map.getLayer("venue-heat")) {
+					map.setLayoutProperty(
+						"venue-heat",
+						"visibility",
+						mode === "heatmap" ? "visible" : "none",
+					);
+				}
+			}
+			bubblesButton.addEventListener("click", () => setViewMode("bubbles"));
+			heatmapButton.addEventListener("click", () => setViewMode("heatmap"));
+
+			function sliderCutoff() {
+				const value = Number(timeSlider.value);
+				if (value >= timeline.totalDays) {
+					return Infinity;
+				}
+				return timeline.startMs + value * 86_400_000;
+			}
+
+			function updateTimeLabel() {
+				const cutoffMs = sliderCutoff();
+				if (cutoffMs === Infinity) {
+					timeLabel.textContent = "All check-ins";
+					return;
+				}
+				timeLabel.textContent = `Through ${new Date(cutoffMs).toLocaleDateString("en-US", {
+					month: "short",
+					day: "numeric",
+					year: "numeric",
+				})}`;
+			}
+
+			function pausePlayback() {
+				if (playTimer) {
+					clearInterval(playTimer);
+					playTimer = null;
+					playButton.innerHTML = "&#9654;";
+					playButton.setAttribute("aria-label", "Play");
+				}
+			}
+
+			function setupTimeline() {
+				// A loop, not Math.min(...spread): engines throw past ~65k arguments.
+				let startMs = Infinity;
+				let endMs = -Infinity;
+				for (const { times } of canonicalFeatures) {
+					for (const time of times) {
+						if (time < startMs) startMs = time;
+						if (time > endMs) endMs = time;
+					}
+				}
+				if (!Number.isFinite(startMs) || endMs <= startMs) {
+					return;
+				}
+				const totalDays = Math.ceil((endMs - startMs) / 86_400_000);
+				timeline = { startMs, totalDays };
+				timeSlider.max = String(totalDays);
+				timeSlider.value = String(totalDays);
+				timeControlElement.hidden = false;
+				updateTimeLabel();
+
+				timeSlider.addEventListener("input", () => {
+					pausePlayback();
+					applyCutoff(sliderCutoff());
+					updateTimeLabel();
+				});
+
+				playButton.addEventListener("click", () => {
+					if (playTimer) {
+						pausePlayback();
+						return;
+					}
+					if (Number(timeSlider.value) >= timeline.totalDays) {
+						timeSlider.value = "0";
+					}
+					const step = Math.max(1, Math.round(timeline.totalDays / 240));
+					playButton.innerHTML = "&#9646;&#9646;";
+					playButton.setAttribute("aria-label", "Pause");
+					playTimer = setInterval(() => {
+						const next = Math.min(Number(timeSlider.value) + step, timeline.totalDays);
+						timeSlider.value = String(next);
+						applyCutoff(sliderCutoff());
+						updateTimeLabel();
+						if (next >= timeline.totalDays) {
+							pausePlayback();
+						}
+					}, 60);
+				});
+			}
+
 			let mapLoaded = false;
 			// Source/tile errors carry sourceId; a bare error before "load" is a style failure.
 			map.on("error", (event) => {
@@ -209,6 +756,19 @@
 				if (!mapLoaded && !event.sourceId) {
 					showError("Could not load the base map");
 				}
+			});
+
+			// A scheme change swaps the basemap; setStyle drops our sources and layers.
+			// A persistent handler re-adds them after any number of overlapping swaps;
+			// a once() per swap can fire twice on one style.load or get consumed early.
+			map.on("style.load", () => {
+				if (filteredCollection && !map.getSource("venues")) {
+					addMapData();
+				}
+			});
+			darkScheme.addEventListener("change", () => {
+				updateLegend();
+				map.setStyle(currentTheme().style);
 			});
 
 			map.on("load", async () => {
@@ -231,77 +791,23 @@
 					return;
 				}
 
-				map.addSource("venues", {
-					type: "geojson",
-					data: venues,
-					cluster: true,
-					clusterMaxZoom: 11,
-					clusterRadius: 45,
-				});
+				prepareFeatures(venues);
+				applyCutoff(Infinity);
+				addMapData();
+				updateLegend();
+				setupTimeline();
+				viewToggleElement.hidden = false;
+				metricToggleElement.hidden = viewMode !== "bubbles";
+				legendElement.hidden = viewMode !== "bubbles";
 
-				map.addLayer({
-					id: "clusters",
-					type: "circle",
-					source: "venues",
-					filter: ["has", "point_count"],
-					paint: {
-						"circle-color": "#37474F",
-						"circle-radius": ["step", ["get", "point_count"], 14, 10, 18, 50, 24],
-						"circle-stroke-width": 1.5,
-						"circle-stroke-color": "#ffffff",
-					},
-				});
-
-				map.addLayer({
-					id: "cluster-counts",
-					type: "symbol",
-					source: "venues",
-					filter: ["has", "point_count"],
-					layout: {
-						"text-field": ["get", "point_count_abbreviated"],
-						"text-font": ["Noto Sans Regular"],
-						"text-size": 12,
-					},
-					paint: {
-						"text-color": "#ffffff",
-					},
-				});
-
-				map.addLayer({
-					id: "venue-points",
-					type: "circle",
-					source: "venues",
-					filter: ["!", ["has", "point_count"]],
-					paint: {
-						"circle-color": [
-							"step",
-							["coalesce", ["get", "total_venue_checkins"], 1],
-							"#F59E0B",
-							2,
-							"#EA580C",
-							5,
-							"#9A3412",
-						],
-						"circle-radius": [
-							"step",
-							["coalesce", ["get", "total_venue_checkins"], 1],
-							6,
-							2,
-							7.5,
-							5,
-							9,
-						],
-						"circle-stroke-width": 1.5,
-						"circle-stroke-color": "#ffffff",
-					},
-				});
-
-				const bounds = new maplibregl.LngLatBounds();
-				for (const feature of venues.features) {
-					bounds.extend(feature.geometry.coordinates);
-				}
-				if (!bounds.isEmpty()) {
-					map.fitBounds(bounds, { padding: 48, maxZoom: 10 });
+				if (!startedWithHash) {
+					const bounds = new maplibregl.LngLatBounds();
+					for (const { feature } of canonicalFeatures) {
+						bounds.extend(feature.geometry.coordinates);
+					}
+					if (!bounds.isEmpty()) {
+						map.fitBounds(bounds, { padding: 48, maxZoom: 10 });
+					}
 				}
 
 				map.on("click", "clusters", async (event) => {
@@ -323,11 +829,44 @@
 					event.preventDefault();
 				});
 
+				let hoverPopup = null;
+				let hoverVenueId = null;
+				function clearHoverPopup() {
+					hoverPopup?.remove();
+					hoverPopup = null;
+					hoverVenueId = null;
+				}
+				if (matchMedia("(hover: hover)").matches) {
+					map.on("mousemove", "venue-points", (event) => {
+						const feature = event.features[0];
+						const venueId = feature.properties.venue_id;
+						if (venueId === hoverVenueId) {
+							return;
+						}
+						clearHoverPopup();
+						hoverVenueId = venueId;
+						hoverPopup = new maplibregl.Popup({
+							closeButton: false,
+							closeOnClick: false,
+							maxWidth: "320px",
+							offset: 12,
+							className: "hover-popup",
+						})
+							.setLngLat(feature.geometry.coordinates)
+							.setDOMContent(popupContent(propertiesById.get(venueId) ?? feature.properties))
+							.addTo(map);
+					});
+					map.on("mouseleave", "venue-points", clearHoverPopup);
+				}
+
 				map.on("click", "venue-points", (event) => {
+					clearHoverPopup();
 					const feature = event.features[0];
+					const properties = propertiesById.get(feature.properties.venue_id)
+						?? feature.properties;
 					new maplibregl.Popup({ maxWidth: "320px" })
 						.setLngLat(feature.geometry.coordinates)
-						.setDOMContent(popupContent(feature.properties))
+						.setDOMContent(popupContent(properties))
 						.addTo(map);
 				});
 

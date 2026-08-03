@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import math
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -57,6 +58,12 @@ class UntappdParser:
 
     def _get_unique_venues(self) -> list[dict[str, Any]]:
         venue_info: dict[VenueLocation, dict[str, Any]] = {}
+        venue_beers: dict[VenueLocation, set[str]] = {}
+        venue_breweries: dict[VenueLocation, set[str]] = {}
+        venue_styles: dict[VenueLocation, Counter[str]] = {}
+        venue_abv: dict[VenueLocation, list[float]] = {}
+        # (created_at, beer_name, brewery_name) of the newest check-in per venue.
+        venue_last_beer: dict[VenueLocation, tuple[str, str, str | None]] = {}
         for entry in self.data:
             venue_name = entry.get("venue_name")
             venue_lat = entry.get("venue_lat")
@@ -77,23 +84,66 @@ class UntappdParser:
                     "total_venue_checkins": 1,
                     "checkin_dates": [entry.get("created_at")] if entry.get("created_at") else [],
                 }
+                venue_beers[venue] = set()
+                venue_breweries[venue] = set()
+                venue_styles[venue] = Counter()
+                venue_abv[venue] = []
             else:
                 venue_info[venue]["total_venue_checkins"] += 1
                 if entry.get("created_at"):
                     venue_info[venue]["checkin_dates"].append(entry["created_at"])
 
+            if entry.get("beer_name"):
+                # bid distinguishes different beers that share a name.
+                venue_beers[venue].add(entry.get("bid") or entry["beer_name"])
+                created_at = entry.get("created_at") or ""
+                newest = venue_last_beer.get(venue)
+                if newest is None or (created_at and created_at >= newest[0]):
+                    venue_last_beer[venue] = (
+                        created_at,
+                        entry["beer_name"],
+                        entry.get("brewery_name"),
+                    )
+            if entry.get("brewery_name"):
+                venue_breweries[venue].add(entry["brewery_name"])
+            if entry.get("beer_type"):
+                venue_styles[venue][entry["beer_type"]] += 1
+            abv = self._as_positive_float(entry.get("beer_abv"))
+            if abv is not None:
+                venue_abv[venue].append(abv)
+
         result = []
-        for info in venue_info.values():
-            dates = info.pop("checkin_dates", [])
+        for venue, info in venue_info.items():
+            dates = info["checkin_dates"]
+            dates.sort()
 
             if dates:
-                dates.sort()
                 info["first_checkin"] = dates[0]
                 info["last_checkin"] = dates[-1] if len(dates) > 1 else None
 
+            info["unique_beers"] = len(venue_beers[venue])
+            info["unique_breweries"] = len(venue_breweries[venue])
+            info["top_styles"] = [style for style, _ in venue_styles[venue].most_common(3)]
+            if venue_abv[venue]:
+                info["average_abv"] = round(sum(venue_abv[venue]) / len(venue_abv[venue]), 1)
+            if venue in venue_last_beer:
+                _, info["last_beer_name"], info["last_beer_brewery"] = venue_last_beer[venue]
             result.append(info)
 
         return result
+
+    @staticmethod
+    def _as_positive_float(value: Any) -> float | None:
+        # Untappd leaves unknown ABV/IBU/rating as 0 or ""; both mean "no data".
+        # A non-finite value would poison averages and serialize as a bare
+        # Infinity token that browser JSON.parse rejects.
+        if isinstance(value, bool):
+            return None
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None
+        return number if number > 0 and math.isfinite(number) else None
 
     def clean_data(
         self,
@@ -175,15 +225,30 @@ class UntappdParser:
                 key: entry[key]
                 for key in (
                     "venue_name",
-                    "beer_name",
-                    "brewery_name",
-                    "beer_type",
+                    "venue_city",
+                    "venue_state",
+                    "venue_country",
                     "total_venue_checkins",
+                    "unique_beers",
+                    "unique_breweries",
+                    "top_styles",
+                    "average_abv",
+                    "last_beer_name",
+                    "last_beer_brewery",
                     "first_checkin",
                     "last_checkin",
+                    "checkin_dates",
                 )
                 if entry.get(key) is not None
             }
+            # Publish dates at day precision; full timestamps stay private.
+            for key in ("first_checkin", "last_checkin"):
+                if key in properties:
+                    properties[key] = str(properties[key])[:10]
+            if "checkin_dates" in properties:
+                properties["checkin_dates"] = [
+                    str(date)[:10] for date in properties["checkin_dates"]
+                ]
             features.append(
                 {
                     "type": "Feature",
@@ -197,6 +262,118 @@ class UntappdParser:
         # indent=1 keeps refresh diffs readable when the file is committed to a site repo.
         with Path(filename).open("w", encoding="utf-8") as f:
             json.dump(self.to_geojson(data), f, ensure_ascii=False, indent=1)
+
+    def to_dashboard_stats(self) -> dict[str, Any]:
+        checkins_per_day: Counter[str] = Counter()
+        weekday_hour = [[0] * 24 for _ in range(7)]
+        abv_counts = [0] * 32  # 0.5% bins; the last bin is 15.5%+
+        ibu_counts = [0] * 13  # 10 IBU bins; the last bin is 120+
+        my_rating_counts = [0] * 21  # 0.25 bins over 0-5
+        global_rating_counts = [0] * 21
+        abv_values: list[float] = []
+        my_rating_values: list[float] = []
+        global_rating_values: list[float] = []
+        brewery_checkins: Counter[str] = Counter()
+        brewery_beers: dict[str, set[Any]] = {}
+        brewery_countries: Counter[str] = Counter()
+        flavor_counts: Counter[str] = Counter()
+        flavor_tagged_checkins = 0
+        unique_beers: set[Any] = set()
+
+        for entry in self.data:
+            created_at = entry.get("created_at")
+            if created_at:
+                try:
+                    moment = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S")  # noqa: DTZ007
+                except (TypeError, ValueError):
+                    moment = None
+                if moment is not None:
+                    checkins_per_day[moment.strftime("%Y-%m-%d")] += 1
+                    weekday_hour[moment.weekday()][moment.hour] += 1
+
+            abv = self._as_positive_float(entry.get("beer_abv"))
+            if abv is not None:
+                abv_values.append(abv)
+                abv_counts[min(int(abv / 0.5), 31)] += 1
+
+            ibu = self._as_positive_float(entry.get("beer_ibu"))
+            if ibu is not None:
+                ibu_counts[min(int(ibu / 10), 12)] += 1
+
+            rating = self._as_positive_float(entry.get("rating_score"))
+            if rating is not None:
+                my_rating_values.append(rating)
+                my_rating_counts[min(int(rating / 0.25), 20)] += 1
+
+            global_rating = self._as_positive_float(entry.get("global_weighted_rating_score"))
+            if global_rating is not None:
+                global_rating_values.append(global_rating)
+                global_rating_counts[min(int(global_rating / 0.25), 20)] += 1
+
+            beer_id = entry.get("bid") or entry.get("beer_name")
+            if beer_id:
+                unique_beers.add(beer_id)
+            if entry.get("brewery_name"):
+                brewery = entry["brewery_name"]
+                brewery_checkins[brewery] += 1
+                if beer_id:
+                    brewery_beers.setdefault(brewery, set()).add(beer_id)
+            if entry.get("brewery_country"):
+                brewery_countries[entry["brewery_country"]] += 1
+            if entry.get("flavor_profiles"):
+                flavor_tagged_checkins += 1
+                for flavor in str(entry["flavor_profiles"]).split(","):
+                    if flavor.strip():
+                        flavor_counts[flavor.strip()] += 1
+
+        def mean(values: list[float], digits: int) -> float | None:
+            return round(sum(values) / len(values), digits) if values else None
+
+        days = sorted(checkins_per_day)
+        return {
+            "totals": {
+                "checkins": len(self.data),
+                "unique_beers": len(unique_beers),
+                "unique_breweries": len(brewery_checkins),
+                "unique_venues": len(self._get_unique_venues()),
+                "first_day": days[0] if days else None,
+                "last_day": days[-1] if days else None,
+                "average_abv": mean(abv_values, 1),
+                "average_rating": mean(my_rating_values, 2),
+                "average_global_rating": mean(global_rating_values, 2),
+                "flavor_tagged_checkins": flavor_tagged_checkins,
+            },
+            "checkins_per_day": dict(checkins_per_day),
+            "weekday_hour": weekday_hour,
+            "abv_histogram": {"start": 0, "bin_width": 0.5, "counts": abv_counts},
+            "ibu_histogram": {"start": 0, "bin_width": 10, "counts": ibu_counts},
+            "rating_histograms": {
+                "start": 0,
+                "bin_width": 0.25,
+                "mine": my_rating_counts,
+                "global": global_rating_counts,
+            },
+            "top_breweries": [
+                {
+                    "name": name,
+                    "checkins": count,
+                    "unique_beers": len(brewery_beers.get(name, set())),
+                }
+                for name, count in brewery_checkins.most_common(20)
+            ],
+            "brewery_countries": [
+                {"country": country, "checkins": count}
+                for country, count in brewery_countries.most_common()
+            ],
+            "flavor_profiles": [
+                {"flavor": flavor, "checkins": count}
+                for flavor, count in flavor_counts.most_common(20)
+            ],
+        }
+
+    def save_dashboard_stats(self, filename: str) -> None:
+        with Path(filename).open("w", encoding="utf-8") as f:
+            json.dump(self.to_dashboard_stats(), f, ensure_ascii=False, indent=1)
 
     def get_visit_distribution(self, data: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
         single_visit: list[dict[str, Any]] = []
@@ -235,10 +412,18 @@ class UntappdParser:
 
         # Rows can have heterogeneous key sets; union them so DictWriter never raises.
         fieldnames = list(dict.fromkeys(key for entry in data for key in entry))
+        # List values (checkin_dates, top_styles) would render as Python reprs.
+        rows = [
+            {
+                key: "; ".join(str(item) for item in value) if isinstance(value, list) else value
+                for key, value in entry.items()
+            }
+            for entry in data
+        ]
         with Path(filename).open("w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
-            writer.writerows(data)
+            writer.writerows(rows)
 
     def _save_visit_distribution_csvs(self, data: list[dict[str, Any]], base_filename: str) -> bool:
         distribution = self.get_visit_distribution(data)

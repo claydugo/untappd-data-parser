@@ -52,11 +52,27 @@ untappd-parser <UNTAPPD-DATA>.json --geojson
 ```
 
 This writes `*_unique_venue.geojson`, a FeatureCollection with one point per
-venue. Each feature carries the venue name, beer, brewery, beer type, visit
-count, and first/last check-in dates. `beermap.html` renders this file with
+venue. Each feature carries the venue name and location, the check-in count
+and dates (day precision), unique beer and brewery counts, the top styles,
+and the newest beer. Ratings, comments, tagged friends, and exact times stay
+out of the file. `beermap.html` renders this file with
 [MapLibre GL](https://maplibre.org) on [OpenFreeMap](https://openfreemap.org)
 tiles: copy `beermap.html` and the GeoJSON (renamed to `venues.geojson`) into
-one directory on any static host.
+one directory on any static host. The map has clustered bubbles, a heatmap
+view, a time slider with playback, hover popups, summary stats, and a dark
+mode that follows the system theme.
+
+#### Export dashboard stats (for beerstats.html)
+```bash
+untappd-parser <UNTAPPD-DATA>.json --dashboard
+```
+
+This writes `*_stats.json` with aggregate numbers only: check-ins per day,
+weekday and hour counts, ABV and IBU histograms, rating distributions, top
+breweries, brewery countries, and flavor tags. No single check-in appears in
+the file. `beerstats.html` renders it as a dashboard: a check-in calendar, a
+weekday and hour matrix, histograms, and top lists. Copy the page and the
+stats file (renamed to `stats.json`) into one directory on any static host.
 
 ##### Additional Flags
 

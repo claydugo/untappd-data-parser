@@ -30,6 +30,11 @@ def main() -> None:
         action="store_true",
         help="Also write a GeoJSON FeatureCollection of unique venues (for beermap.html)",
     )
+    parser.add_argument(
+        "--dashboard",
+        action="store_true",
+        help="Also write aggregate stats JSON (for beerstats.html)",
+    )
 
     args = parser.parse_args()
 
@@ -65,6 +70,11 @@ def main() -> None:
         if geojson:
             untappd.save_geojson(unique_entries, f"{base_filename}.geojson")
             print(f"GeoJSON saved to {base_filename}.geojson")
+
+        if args.dashboard:
+            stats_filename = f"{Path(args.file).stem}_stats.json"
+            untappd.save_dashboard_stats(stats_filename)
+            print(f"Dashboard stats saved to {stats_filename}")
 
         cleaned_data = untappd.clean_data(
             unique_entries,

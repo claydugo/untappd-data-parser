@@ -86,6 +86,76 @@ def test_single_visit_has_no_last_checkin(parser):
     assert pub["last_checkin"] is None
 
 
+def test_unique_venues_aggregate_beers_breweries_styles(parser):
+    venues = parser.get_unique_entries("venue")
+    tavern = next(v for v in venues if v["venue_name"] == "The Tavern")
+    assert tavern["unique_beers"] == 3
+    assert tavern["unique_breweries"] == 2
+    assert tavern["top_styles"] == ["IPA"]
+    # The newest check-in at the Tavern is Focal on 2024-03-01.
+    assert tavern["last_beer_name"] == "Focal"
+    assert tavern["last_beer_brewery"] == "The Alchemist"
+    cellar = next(v for v in venues if v["venue_name"] == "The Cellar")
+    # Six check-ins of the same beer stay one unique beer.
+    assert cellar["unique_beers"] == 1
+    assert cellar["unique_breweries"] == 1
+
+
+def test_unique_venues_average_abv_skips_unlisted():
+    tavern_checkin = ["The Tavern", 40.0, -75.0]
+    data = [
+        _checkin("Pliny", "Russian River", *tavern_checkin, "2024-01-01 18:00:00", beer_abv=8.0),
+        _checkin("Heady", "The Alchemist", *tavern_checkin, "2024-02-01 18:00:00", beer_abv=7.0),
+        _checkin("Focal", "The Alchemist", *tavern_checkin, "2024-03-01 18:00:00", beer_abv=0),
+    ]
+    parser = UntappdParser(data=data)
+    tavern = parser.get_unique_entries("venue")[0]
+    # Zero ABV means unlisted; it must not drag the average down.
+    assert tavern["average_abv"] == 7.5
+    assert parser.to_geojson([tavern])["features"][0]["properties"]["average_abv"] == 7.5
+
+
+def test_unique_venues_count_beers_by_bid():
+    # Two different beers sharing a name stay two beers.
+    data = [
+        _checkin("Oktoberfest", "A", "The Tavern", 40.0, -75.0, "2024-01-01 18:00:00", bid=1),
+        _checkin("Oktoberfest", "B", "The Tavern", 40.0, -75.0, "2024-02-01 18:00:00", bid=2),
+    ]
+    tavern = UntappdParser(data=data).get_unique_entries("venue")[0]
+    assert tavern["unique_beers"] == 2
+
+
+def test_aggregates_reject_nonfinite_and_bool_numbers():
+    tavern_checkin = ["The Tavern", 40.0, -75.0]
+    data = [
+        _checkin("Pliny", "RR", *tavern_checkin, "2024-01-01 18:00:00", beer_abv=float("inf")),
+        _checkin(
+            "Heady",
+            "TA",
+            *tavern_checkin,
+            "2024-02-01 18:00:00",
+            beer_abv=float("nan"),
+            rating_score=True,
+        ),
+    ]
+    parser = UntappdParser(data=data)
+    tavern = parser.get_unique_entries("venue")[0]
+    # A bare Infinity token in the GeoJSON would break browser JSON.parse.
+    assert "average_abv" not in tavern
+    stats = parser.to_dashboard_stats()
+    assert stats["totals"]["average_abv"] is None
+    assert stats["totals"]["average_rating"] is None
+
+
+def test_unique_venues_keep_sorted_checkin_dates(parser):
+    tavern = next(v for v in parser.get_unique_entries("venue") if v["venue_name"] == "The Tavern")
+    assert tavern["checkin_dates"] == [
+        "2024-01-01 18:00:00",
+        "2024-02-01 18:00:00",
+        "2024-03-01 18:00:00",
+    ]
+
+
 def test_unique_entries_by_other_key(parser):
     breweries = parser.get_unique_entries("brewery_name")
     assert {b["brewery_name"] for b in breweries} == {
@@ -220,9 +290,48 @@ def test_to_geojson_builds_point_features(parser):
     # GeoJSON coordinate order is [longitude, latitude].
     assert tavern["geometry"] == {"type": "Point", "coordinates": [-75.0, 40.0]}
     assert tavern["properties"]["total_venue_checkins"] == 3
-    assert tavern["properties"]["first_checkin"] == "2024-01-01 18:00:00"
+    # Published dates are day precision; exact times stay private.
+    assert tavern["properties"]["first_checkin"] == "2024-01-01"
     assert "checkin_id" not in tavern["properties"]
     assert "venue_lat" not in tavern["properties"]
+
+
+def test_to_geojson_includes_aggregates_and_dates(parser):
+    features = parser.to_geojson(parser.get_unique_entries("venue"))["features"]
+    tavern = next(f for f in features if f["properties"]["venue_name"] == "The Tavern")
+    assert tavern["properties"]["unique_beers"] == 3
+    assert tavern["properties"]["unique_breweries"] == 2
+    assert tavern["properties"]["top_styles"] == ["IPA"]
+    assert tavern["properties"]["last_beer_name"] == "Focal"
+    assert tavern["properties"]["last_beer_brewery"] == "The Alchemist"
+    assert tavern["properties"]["checkin_dates"] == ["2024-01-01", "2024-02-01", "2024-03-01"]
+
+
+def test_to_geojson_keeps_location_drops_private_fields(parser):
+    entry = _checkin(
+        "Pliny",
+        "Russian River",
+        "The Tavern",
+        40.0,
+        -75.0,
+        "2024-01-01 18:00:00",
+        venue_city="Philadelphia",
+        venue_state="PA",
+        venue_country="United States",
+        checkin_url="https://untappd.com/user/clay/checkin/1",
+        rating_score=4.5,
+    )
+    properties = parser.to_geojson([entry])["features"][0]["properties"]
+    assert properties["venue_city"] == "Philadelphia"
+    assert properties["venue_state"] == "PA"
+    assert properties["venue_country"] == "United States"
+    # Ratings, comments, per-beer fields, and check-in URLs stay out of the
+    # published file. Untappd 404s public check-in pages now anyway.
+    assert "rating_score" not in properties
+    assert "comment" not in properties
+    assert "beer_name" not in properties
+    assert "brewery_name" not in properties
+    assert "checkin_url" not in properties
 
 
 def test_to_geojson_skips_entries_without_coordinates(parser):
@@ -264,8 +373,97 @@ def test_cli_geojson_keeps_dates_with_no_strip_backend(tmp_path, sample_data, mo
 
     geojson = json.loads((tmp_path / "export_unique_venue.geojson").read_text(encoding="utf-8"))
     tavern = next(f for f in geojson["features"] if f["properties"]["venue_name"] == "The Tavern")
-    assert tavern["properties"]["first_checkin"] == "2024-01-01 18:00:00"
-    assert tavern["properties"]["last_checkin"] == "2024-03-01 18:00:00"
+    assert tavern["properties"]["first_checkin"] == "2024-01-01"
+    assert tavern["properties"]["last_checkin"] == "2024-03-01"
+
+
+def test_dashboard_stats_aggregates():
+    data = [
+        _checkin(
+            "Pliny",
+            "Russian River",
+            "The Tavern",
+            40.0,
+            -75.0,
+            "2024-01-01 18:00:00",
+            beer_abv=8.0,
+            beer_ibu=100,
+            rating_score=4.5,
+            global_weighted_rating_score=4.2,
+            brewery_country="United States",
+            flavor_profiles="juicy, piney",
+            bid=1,
+        ),
+        _checkin(
+            "Heady",
+            "The Alchemist",
+            "The Tavern",
+            40.0,
+            -75.0,
+            "2024-01-01 20:00:00",
+            beer_abv=8.0,
+            beer_ibu=75,
+            rating_score="",
+            global_weighted_rating_score=4.4,
+            brewery_country="United States",
+            flavor_profiles="juicy",
+            bid=2,
+        ),
+    ]
+    stats = UntappdParser(data=data).to_dashboard_stats()
+    assert stats["totals"]["checkins"] == 2
+    assert stats["totals"]["unique_beers"] == 2
+    assert stats["totals"]["unique_venues"] == 1
+    assert stats["totals"]["average_abv"] == 8.0
+    # An empty-string rating is unrated, not zero.
+    assert stats["totals"]["average_rating"] == 4.5
+    assert stats["totals"]["flavor_tagged_checkins"] == 2
+    assert stats["checkins_per_day"] == {"2024-01-01": 2}
+    # 2024-01-01 is a Monday.
+    assert stats["weekday_hour"][0][18] == 1
+    assert stats["weekday_hour"][0][20] == 1
+    assert stats["abv_histogram"]["counts"][16] == 2
+    assert stats["ibu_histogram"]["counts"][10] == 1
+    assert stats["ibu_histogram"]["counts"][7] == 1
+    assert stats["rating_histograms"]["mine"][18] == 1
+    assert sum(stats["rating_histograms"]["mine"]) == 1
+    assert sum(stats["rating_histograms"]["global"]) == 2
+    assert stats["brewery_countries"] == [{"country": "United States", "checkins": 2}]
+    assert stats["flavor_profiles"][0] == {"flavor": "juicy", "checkins": 2}
+    assert len(stats["top_breweries"]) == 2
+
+
+def test_dashboard_stats_empty_data():
+    stats = UntappdParser(data=[]).to_dashboard_stats()
+    assert stats["totals"]["checkins"] == 0
+    assert stats["totals"]["first_day"] is None
+    assert stats["totals"]["average_abv"] is None
+    assert stats["top_breweries"] == []
+
+
+def test_csv_serializes_list_values(tmp_path, parser):
+    venues = parser.get_unique_entries("venue")
+    cleaned = parser.clean_data(venues, strip_backend=False, fancy_dates=False, human_keys=False)
+    base = str(tmp_path / "out")
+    parser.save_files(cleaned, base)
+
+    with Path(f"{base}.csv").open(encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    tavern = next(row for row in rows if row["venue_name"] == "The Tavern")
+    assert tavern["top_styles"] == "IPA"
+    assert tavern["checkin_dates"].startswith("2024-01-01 18:00:00; ")
+
+
+def test_cli_dashboard_writes_stats(tmp_path, sample_data, monkeypatch):
+    export = tmp_path / "export.json"
+    export.write_text(json.dumps(sample_data), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sys.argv", ["untappd-parser", str(export), "--dashboard"])
+    cli_main()
+
+    stats = json.loads((tmp_path / "export_stats.json").read_text(encoding="utf-8"))
+    assert stats["totals"]["checkins"] == 10
+    assert stats["totals"]["unique_venues"] == 3
 
 
 def test_save_geojson_writes_file(tmp_path, parser):

@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>Beer Stats</title>
+		<meta
+			http-equiv="Content-Security-Policy"
+			content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+		>
+		<style>
+			:root {
+				color-scheme: light dark;
+				--page: #f9f9f7;
+				--surface: #ffffff;
+				--text: #1a1a1a;
+				--muted: #666;
+				--hairline: rgba(0, 0, 0, 0.1);
+				--accent-bar: #EA580C;
+				--series-mine: #EA580C;
+				--series-global: #2a78d6;
+				--cell-0: #ececea;
+				--cell-1: #FDE68A;
+				--cell-2: #F59E0B;
+				--cell-3: #EA580C;
+				--cell-4: #9A3412;
+			}
+			@media (prefers-color-scheme: dark) {
+				:root {
+					--page: #0d0d0d;
+					--surface: #1c1c1c;
+					--text: #eee;
+					--muted: #a5a5a5;
+					--hairline: rgba(255, 255, 255, 0.1);
+					--accent-bar: #F59E0B;
+					--series-mine: #D97706;
+					--series-global: #3987e5;
+					--cell-0: #262626;
+					--cell-1: #92400E;
+					--cell-2: #D97706;
+					--cell-3: #F59E0B;
+					--cell-4: #FCD34D;
+				}
+			}
+			html,
+			body {
+				margin: 0;
+				background: var(--page);
+				color: var(--text);
+				font-family: system-ui, -apple-system, sans-serif;
+			}
+			main {
+				max-width: 1080px;
+				margin: 0 auto;
+				padding: 24px 16px 48px;
+			}
+			h1 {
+				font-size: 24px;
+				margin: 0 0 4px;
+			}
+			h2 {
+				font-size: 15px;
+				margin: 0 0 12px;
+			}
+			.subtitle {
+				color: var(--muted);
+				font-size: 13px;
+				margin: 0 0 20px;
+			}
+			.muted {
+				color: var(--muted);
+				font-weight: 400;
+			}
+			.card {
+				background: var(--surface);
+				border: 1px solid var(--hairline);
+				border-radius: 8px;
+				padding: 16px;
+				margin-bottom: 16px;
+			}
+			.card-note {
+				color: var(--muted);
+				font-size: 12px;
+				margin: -8px 0 12px;
+			}
+			.tiles {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+				gap: 12px;
+				margin-bottom: 16px;
+			}
+			.tile {
+				background: var(--surface);
+				border: 1px solid var(--hairline);
+				border-radius: 8px;
+				padding: 12px 14px;
+			}
+			.tile-value {
+				font-size: 26px;
+				font-weight: 650;
+				line-height: 1.2;
+			}
+			.tile-label {
+				color: var(--muted);
+				font-size: 12px;
+				margin-top: 2px;
+			}
+			.grid-2 {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 16px;
+			}
+			.grid-2 .card {
+				margin-bottom: 16px;
+			}
+			@media (max-width: 760px) {
+				.grid-2 {
+					grid-template-columns: 1fr;
+					gap: 0;
+				}
+			}
+			.scroll-x {
+				overflow-x: auto;
+			}
+			.cal-year {
+				font-size: 12px;
+				font-weight: 600;
+				margin: 10px 0 4px;
+			}
+			.cal-grid {
+				display: grid;
+				grid-auto-flow: column;
+				grid-template-rows: repeat(7, 11px);
+				grid-auto-columns: 11px;
+				gap: 2px;
+			}
+			.cal-cell {
+				width: 11px;
+				height: 11px;
+				border-radius: 2px;
+				background: var(--cell-0);
+			}
+			.cal-cell.pad {
+				visibility: hidden;
+			}
+			.cal-legend {
+				display: flex;
+				align-items: center;
+				gap: 3px;
+				color: var(--muted);
+				font-size: 11px;
+				margin-top: 10px;
+			}
+			.cal-legend .cal-cell {
+				visibility: visible;
+			}
+			.matrix {
+				display: grid;
+				grid-template-columns: 42px repeat(24, 1fr);
+				gap: 2px;
+				font-size: 11px;
+				color: var(--muted);
+			}
+			.matrix-cell {
+				height: 22px;
+				border-radius: 2px;
+				background: var(--cell-0);
+			}
+			.matrix-label {
+				display: flex;
+				align-items: center;
+			}
+			.matrix-hour {
+				text-align: left;
+			}
+			/* Below .cal-cell and .matrix-cell so the level color wins at equal specificity. */
+			.level-1 { background: var(--cell-1); }
+			.level-2 { background: var(--cell-2); }
+			.level-3 { background: var(--cell-3); }
+			.level-4 { background: var(--cell-4); }
+			.histogram {
+				display: flex;
+				align-items: flex-end;
+				height: 150px;
+				gap: 2px;
+			}
+			.histogram-column {
+				flex: 1;
+				display: flex;
+				flex-direction: column;
+				justify-content: flex-end;
+				height: 100%;
+				min-width: 0;
+			}
+			.histogram-bar {
+				background: var(--accent-bar);
+				border-radius: 4px 4px 0 0;
+			}
+			.histogram-bar.mine { background: var(--series-mine); }
+			.histogram-bar.global { background: var(--series-global); }
+			.histogram-pair {
+				display: flex;
+				align-items: flex-end;
+				gap: 1px;
+				height: 100%;
+			}
+			.histogram-pair .histogram-bar {
+				flex: 1;
+			}
+			.axis-labels {
+				display: flex;
+				gap: 2px;
+				color: var(--muted);
+				font-size: 11px;
+				margin-top: 4px;
+			}
+			.axis-labels span {
+				flex: 1;
+				min-width: 0;
+				overflow: visible;
+				white-space: nowrap;
+			}
+			.chart-legend {
+				display: flex;
+				gap: 16px;
+				font-size: 12px;
+				color: var(--muted);
+				margin-bottom: 10px;
+			}
+			.chart-legend .chip {
+				display: inline-block;
+				width: 10px;
+				height: 10px;
+				border-radius: 2px;
+				margin-right: 5px;
+			}
+			.bar-rows {
+				display: grid;
+				grid-template-columns: minmax(0, 180px) 1fr auto;
+				align-items: center;
+				gap: 6px 10px;
+				font-size: 13px;
+			}
+			.bar-name {
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+			}
+			.bar-track {
+				height: 14px;
+			}
+			.bar-fill {
+				height: 100%;
+				background: var(--accent-bar);
+				border-radius: 0 4px 4px 0;
+				min-width: 2px;
+			}
+			.bar-value {
+				color: var(--muted);
+				font-size: 12px;
+				font-variant-numeric: tabular-nums;
+			}
+			#tooltip {
+				position: fixed;
+				z-index: 10;
+				background: var(--surface);
+				color: var(--text);
+				border: 1px solid var(--hairline);
+				border-radius: 6px;
+				box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+				padding: 6px 10px;
+				font-size: 12px;
+				pointer-events: none;
+				max-width: 260px;
+			}
+			.load-error {
+				background: #b71c1c;
+				color: #fff;
+				border-radius: 6px;
+				padding: 8px 16px;
+				font-size: 14px;
+				margin-bottom: 16px;
+			}
+		</style>
+	</head>
+	<body>
+		<main>
+			<h1>Beer Stats</h1>
+			<p class="subtitle" id="subtitle"></p>
+			<section class="tiles" id="tiles"></section>
+			<section class="card">
+				<h2>Check-in calendar</h2>
+				<div class="scroll-x" id="calendar"></div>
+				<div class="cal-legend" id="calendar-legend">
+					Less
+					<span class="cal-cell"></span>
+					<span class="cal-cell level-1"></span>
+					<span class="cal-cell level-2"></span>
+					<span class="cal-cell level-3"></span>
+					<span class="cal-cell level-4"></span>
+					More
+				</div>
+			</section>
+			<section class="card">
+				<h2>When I drink</h2>
+				<p class="card-note">Hours come from the export timestamps as written.</p>
+				<div class="matrix" id="weekday-hour"></div>
+			</section>
+			<div class="grid-2">
+				<section class="card">
+					<h2>ABV</h2>
+					<div class="histogram" id="abv-chart"></div>
+					<div class="axis-labels" id="abv-labels"></div>
+				</section>
+				<section class="card">
+					<h2>IBU</h2>
+					<p class="card-note" id="ibu-note"></p>
+					<div class="histogram" id="ibu-chart"></div>
+					<div class="axis-labels" id="ibu-labels"></div>
+				</section>
+			</div>
+			<section class="card">
+				<h2>My ratings vs the crowd</h2>
+				<p class="card-note" id="ratings-note"></p>
+				<div class="chart-legend">
+					<span><span class="chip" style="background: var(--series-mine);"></span>My ratings</span>
+					<span><span class="chip" style="background: var(--series-global);"></span>Global (weighted)</span>
+				</div>
+				<div class="histogram" id="ratings-chart"></div>
+				<div class="axis-labels" id="ratings-labels"></div>
+			</section>
+			<div class="grid-2">
+				<section class="card">
+					<h2>Top breweries</h2>
+					<div class="bar-rows" id="breweries"></div>
+				</section>
+				<section class="card">
+					<h2>Brewery countries</h2>
+					<div class="bar-rows" id="countries"></div>
+				</section>
+			</div>
+			<section class="card">
+				<h2>Flavor profiles</h2>
+				<p class="card-note" id="flavor-note"></p>
+				<div class="bar-rows" id="flavors"></div>
+			</section>
+		</main>
+		<div id="tooltip" hidden></div>
+		<script>
+			function formatCount(value) {
+				return Number(value).toLocaleString("en-US");
+			}
+
+			function formatDay(day) {
+				const [year, month, date] = day.split("-").map(Number);
+				return new Date(year, month - 1, date).toLocaleDateString("en-US", {
+					year: "numeric",
+					month: "short",
+					day: "numeric",
+				});
+			}
+
+			function showError(message) {
+				const banner = document.createElement("div");
+				banner.className = "load-error";
+				banner.textContent = message;
+				document.querySelector("main").prepend(banner);
+			}
+
+			function renderTiles(totals) {
+				const tiles = [
+					[formatCount(totals.checkins), "check-ins"],
+					[formatCount(totals.unique_beers), "unique beers"],
+					[formatCount(totals.unique_breweries), "breweries"],
+					[formatCount(totals.unique_venues), "venues"],
+					[totals.average_abv != null ? `${totals.average_abv}%` : "–", "average ABV"],
+					[totals.average_rating != null ? totals.average_rating.toFixed(2) : "–", "average rating"],
+				];
+				const container = document.getElementById("tiles");
+				for (const [value, label] of tiles) {
+					const tile = document.createElement("div");
+					tile.className = "tile";
+					const valueElement = document.createElement("div");
+					valueElement.className = "tile-value";
+					valueElement.textContent = value;
+					const labelElement = document.createElement("div");
+					labelElement.className = "tile-label";
+					labelElement.textContent = label;
+					tile.append(valueElement, labelElement);
+					container.appendChild(tile);
+				}
+			}
+
+			function calendarLevel(count) {
+				if (count === 0) return 0;
+				if (count === 1) return 1;
+				if (count === 2) return 2;
+				if (count <= 4) return 3;
+				return 4;
+			}
+
+			function renderCalendar(checkinsPerDay, firstDay, lastDay) {
+				const container = document.getElementById("calendar");
+				const firstYear = Number(firstDay.slice(0, 4));
+				const lastYear = Number(lastDay.slice(0, 4));
+				for (let year = lastYear; year >= firstYear; year--) {
+					let yearTotal = 0;
+					const grid = document.createElement("div");
+					grid.className = "cal-grid";
+					// Monday-first rows; pad the first column down to Jan 1's weekday.
+					const padCells = (new Date(year, 0, 1).getDay() + 6) % 7;
+					for (let pad = 0; pad < padCells; pad++) {
+						const cell = document.createElement("span");
+						cell.className = "cal-cell pad";
+						grid.appendChild(cell);
+					}
+					const cursor = new Date(year, 0, 1);
+					while (cursor.getFullYear() === year) {
+						const key = `${year}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
+						const count = checkinsPerDay[key] ?? 0;
+						yearTotal += count;
+						const cell = document.createElement("span");
+						cell.className = `cal-cell level-${calendarLevel(count)}`;
+						cell.dataset.tip = `${formatDay(key)}: ${formatCount(count)} check-in${count === 1 ? "" : "s"}`;
+						grid.appendChild(cell);
+						cursor.setDate(cursor.getDate() + 1);
+					}
+					const label = document.createElement("div");
+					label.className = "cal-year";
+					label.innerHTML = `${year} <span class="muted"></span>`;
+					label.querySelector(".muted").textContent = `· ${formatCount(yearTotal)} check-ins`;
+					container.append(label, grid);
+				}
+			}
+
+			function renderWeekdayHour(weekdayHour) {
+				const container = document.getElementById("weekday-hour");
+				const maximum = Math.max(...weekdayHour.flat(), 1);
+				const header = document.createElement("span");
+				container.appendChild(header);
+				for (let hour = 0; hour < 24; hour++) {
+					const label = document.createElement("span");
+					label.className = "matrix-hour";
+					label.textContent = hour % 3 === 0 ? String(hour) : "";
+					container.appendChild(label);
+				}
+				const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+				weekdayHour.forEach((hours, day) => {
+					const label = document.createElement("span");
+					label.className = "matrix-label";
+					label.textContent = dayNames[day];
+					container.appendChild(label);
+					hours.forEach((count, hour) => {
+						const cell = document.createElement("span");
+						const level = count === 0 ? 0 : Math.min(4, 1 + Math.floor((count / maximum) * 4));
+						cell.className = `matrix-cell level-${level}`;
+						cell.dataset.tip = `${dayNames[day]} ${hour}:00–${hour + 1}:00: ${formatCount(count)} check-in${count === 1 ? "" : "s"}`;
+						container.appendChild(cell);
+					});
+				});
+			}
+
+			function renderHistogram(chartId, labelsId, histogram, options) {
+				const chart = document.getElementById(chartId);
+				const labels = document.getElementById(labelsId);
+				const counts = histogram.counts;
+				let last = counts.length - 1;
+				while (last > 0 && counts[last] === 0) last--;
+				const maximum = Math.max(...counts.slice(0, last + 1), 1);
+				for (let bin = 0; bin <= last; bin++) {
+					const column = document.createElement("div");
+					column.className = "histogram-column";
+					const bar = document.createElement("div");
+					bar.className = "histogram-bar";
+					bar.style.height = `${(counts[bin] / maximum) * 100}%`;
+					column.dataset.tip = options.tip(bin, counts[bin]);
+					column.appendChild(bar);
+					chart.appendChild(column);
+					const label = document.createElement("span");
+					label.textContent = options.label(bin) ?? "";
+					labels.appendChild(label);
+				}
+			}
+
+			function renderRatings(histograms) {
+				const chart = document.getElementById("ratings-chart");
+				const labels = document.getElementById("ratings-labels");
+				const mine = histograms.mine;
+				const global = histograms.global;
+				let first = 0;
+				while (first < mine.length - 1 && mine[first] === 0 && global[first] === 0) first++;
+				let last = mine.length - 1;
+				while (last > first && mine[last] === 0 && global[last] === 0) last--;
+				const maximum = Math.max(...mine.slice(first, last + 1), ...global.slice(first, last + 1), 1);
+				for (let bin = first; bin <= last; bin++) {
+					const column = document.createElement("div");
+					column.className = "histogram-column";
+					const pair = document.createElement("div");
+					pair.className = "histogram-pair";
+					for (const [series, name] of [[mine, "mine"], [global, "global"]]) {
+						const bar = document.createElement("div");
+						bar.className = `histogram-bar ${name}`;
+						bar.style.height = `${(series[bin] / maximum) * 100}%`;
+						pair.appendChild(bar);
+					}
+					const low = (bin * histograms.bin_width).toFixed(2);
+					const high = ((bin + 1) * histograms.bin_width).toFixed(2);
+					column.dataset.tip = `${low}–${high}: mine ${formatCount(mine[bin])} · global ${formatCount(global[bin])}`;
+					column.appendChild(pair);
+					chart.appendChild(column);
+					const label = document.createElement("span");
+					const value = bin * histograms.bin_width;
+					label.textContent = Number.isInteger(value) ? String(value) : "";
+					labels.appendChild(label);
+				}
+			}
+
+			function renderBarRows(containerId, rows) {
+				const container = document.getElementById(containerId);
+				const maximum = Math.max(...rows.map((row) => row.value), 1);
+				for (const row of rows) {
+					const name = document.createElement("span");
+					name.className = "bar-name";
+					name.textContent = row.name;
+					name.title = row.name;
+					const track = document.createElement("div");
+					track.className = "bar-track";
+					const fill = document.createElement("div");
+					fill.className = "bar-fill";
+					fill.style.width = `${(row.value / maximum) * 100}%`;
+					track.appendChild(fill);
+					if (row.tip) {
+						track.dataset.tip = row.tip;
+					}
+					const value = document.createElement("span");
+					value.className = "bar-value";
+					value.textContent = formatCount(row.value);
+					container.append(name, track, value);
+				}
+			}
+
+			const tooltip = document.getElementById("tooltip");
+			document.addEventListener("mousemove", (event) => {
+				const target = event.target.closest?.("[data-tip]");
+				if (!target) {
+					tooltip.hidden = true;
+					return;
+				}
+				tooltip.textContent = target.dataset.tip;
+				tooltip.hidden = false;
+				const width = tooltip.offsetWidth;
+				const height = tooltip.offsetHeight;
+				const x = Math.min(event.clientX + 12, window.innerWidth - width - 8);
+				let y = event.clientY + 16;
+				if (y + height > window.innerHeight - 8) {
+					y = event.clientY - height - 10;
+				}
+				tooltip.style.left = `${x}px`;
+				tooltip.style.top = `${y}px`;
+			});
+			// Touch has no mousemove stream to clear a tapped-open tooltip.
+			document.addEventListener("scroll", () => {
+				tooltip.hidden = true;
+			}, true);
+
+			async function main() {
+				let stats;
+				try {
+					// ?data= lets an embedding page point at its own copy; CSP limits it to same-origin.
+					const dataUrl = new URLSearchParams(location.search).get("data") ?? "./stats.json";
+					const response = await fetch(dataUrl);
+					if (!response.ok) {
+						throw new Error(`HTTP ${response.status}`);
+					}
+					stats = await response.json();
+					if (!stats?.totals) {
+						throw new Error("stats data has no totals");
+					}
+				} catch (error) {
+					console.error(error);
+					showError("Could not load stats data");
+					return;
+				}
+
+				const totals = stats.totals;
+				// One malformed section must not blank every chart after it.
+				const sections = [];
+				sections.push(() => {
+					if (totals.first_day && totals.last_day) {
+						document.getElementById("subtitle").textContent =
+							`${formatCount(totals.checkins)} check-ins · ${formatDay(totals.first_day)} – ${formatDay(totals.last_day)}`;
+					}
+					renderTiles(totals);
+				});
+				sections.push(() => {
+					if (totals.first_day && totals.last_day) {
+						renderCalendar(stats.checkins_per_day, totals.first_day, totals.last_day);
+					}
+				});
+				sections.push(() => renderWeekdayHour(stats.weekday_hour));
+
+				sections.push(() => renderHistogram("abv-chart", "abv-labels", stats.abv_histogram, {
+					label: (bin) => (bin % 4 === 0 ? `${bin * stats.abv_histogram.bin_width}%` : null),
+					tip: (bin, count) => {
+						const low = (bin * stats.abv_histogram.bin_width).toFixed(1);
+						const high = ((bin + 1) * stats.abv_histogram.bin_width).toFixed(1);
+						return `${low}–${high}% ABV: ${formatCount(count)} check-ins`;
+					},
+				}));
+
+				sections.push(() => {
+					const ibuTotal = stats.ibu_histogram.counts.reduce((sum, count) => sum + count, 0);
+					document.getElementById("ibu-note").textContent =
+						`From the ${formatCount(ibuTotal)} check-ins with a listed IBU.`;
+					renderHistogram("ibu-chart", "ibu-labels", stats.ibu_histogram, {
+						label: (bin) => (bin % 2 === 0 ? String(bin * stats.ibu_histogram.bin_width) : null),
+						tip: (bin, count) => {
+							const low = bin * stats.ibu_histogram.bin_width;
+							const high = (bin + 1) * stats.ibu_histogram.bin_width;
+							return `${low}–${high} IBU: ${formatCount(count)} check-ins`;
+						},
+					});
+				});
+
+				sections.push(() => {
+					if (totals.average_rating != null && totals.average_global_rating != null) {
+						document.getElementById("ratings-note").textContent =
+							`I average ${totals.average_rating.toFixed(2)}; the crowd averages ${totals.average_global_rating.toFixed(2)} on the same beers.`;
+					}
+					renderRatings(stats.rating_histograms);
+				});
+
+				sections.push(() => renderBarRows(
+					"breweries",
+					stats.top_breweries.map((brewery) => ({
+						name: brewery.name,
+						value: brewery.checkins,
+						tip: `${formatCount(brewery.checkins)} check-ins · ${formatCount(brewery.unique_beers)} unique beers`,
+					})),
+				));
+
+				sections.push(() => {
+					const countries = stats.brewery_countries;
+					const shown = countries.slice(0, 12);
+					const folded = countries.slice(12);
+					const countryRows = shown.map((entry) => ({
+						name: entry.country,
+						value: entry.checkins,
+					}));
+					if (folded.length > 0) {
+						countryRows.push({
+							name: `Other (${folded.length} countries)`,
+							value: folded.reduce((sum, entry) => sum + entry.checkins, 0),
+						});
+					}
+					renderBarRows("countries", countryRows);
+				});
+
+				sections.push(() => {
+					document.getElementById("flavor-note").textContent =
+						`Only ${formatCount(totals.flavor_tagged_checkins ?? 0)} check-ins carry flavor tags.`;
+					renderBarRows(
+						"flavors",
+						stats.flavor_profiles.map((entry) => ({
+							name: entry.flavor,
+							value: entry.checkins,
+						})),
+					);
+				});
+
+				let failedSections = 0;
+				for (const renderSection of sections) {
+					try {
+						renderSection();
+					} catch (error) {
+						console.error(error);
+						failedSections++;
+					}
+				}
+				if (failedSections > 0) {
+					showError("Some charts could not be rendered from this stats file");
+				}
+			}
+			main();
+		</script>
+	</body>
+</html>
