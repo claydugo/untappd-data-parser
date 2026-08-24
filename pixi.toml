@@ -10,7 +10,7 @@ channel-priority = "strict"
 requires-pixi = ">=0.72"
 
 [tasks]
-# Run the CLI: `pixi run parse <export>.json [--key ...] [--split-by-visits]`
+# Run the CLI: `pixi run parse <export>.json [-o dir] [--only map stats csv json]`
 parse = "untappd-parser"
 # Lint, format, and type-check — the same three gates pre-commit runs.
 lint = "ruff check ."

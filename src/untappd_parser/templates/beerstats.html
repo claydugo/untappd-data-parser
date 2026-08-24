@@ -67,6 +67,18 @@
 				font-size: 13px;
 				margin: 0 0 20px;
 			}
+			.sibling {
+				font-size: 13px;
+				margin: 0 0 20px;
+			}
+			.sibling a {
+				color: var(--accent-bar);
+				text-decoration: none;
+				font-weight: 600;
+			}
+			.sibling a:hover {
+				text-decoration: underline;
+			}
 			.muted {
 				color: var(--muted);
 				font-weight: 400;
@@ -287,6 +299,7 @@
 		<main>
 			<h1>Beer Stats</h1>
 			<p class="subtitle" id="subtitle"></p>
+			<!--__UNTAPPD_SIBLING_LINK__-->
 			<section class="tiles" id="tiles"></section>
 			<section class="card">
 				<h2>Check-in calendar</h2>
@@ -346,6 +359,7 @@
 			</section>
 		</main>
 		<div id="tooltip" hidden></div>
+		<script type="application/json" id="stats-data">"__UNTAPPD_STATS_DATA__"</script>
 		<script>
 			function formatCount(value) {
 				return Number(value).toLocaleString("en-US");
@@ -566,13 +580,18 @@
 			async function main() {
 				let stats;
 				try {
-					// ?data= lets an embedding page point at its own copy; CSP limits it to same-origin.
-					const dataUrl = new URLSearchParams(location.search).get("data") ?? "./stats.json";
-					const response = await fetch(dataUrl);
-					if (!response.ok) {
-						throw new Error(`HTTP ${response.status}`);
+					// The data is inlined by default. ?data= lets an embedding page point at a
+					// separately cached copy instead; CSP limits it to same-origin.
+					const dataUrl = new URLSearchParams(location.search).get("data");
+					if (dataUrl) {
+						const response = await fetch(dataUrl);
+						if (!response.ok) {
+							throw new Error(`HTTP ${response.status}`);
+						}
+						stats = await response.json();
+					} else {
+						stats = JSON.parse(document.getElementById("stats-data").textContent);
 					}
-					stats = await response.json();
 					if (!stats?.totals) {
 						throw new Error("stats data has no totals");
 					}

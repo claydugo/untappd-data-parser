@@ -24,10 +24,48 @@ pip install -e .
 
 ### Command Line Interface
 
-#### Basic usage - find unique venues (default)
+#### Basic usage
+
 ```bash
 untappd-parser <UNTAPPD-DATA>.json
 ```
+
+This writes everything into `beer/` and prints what it made:
+
+```
+Wrote beer/
+  beermap.html    1,422 venues · 3,983 check-ins
+  beerstats.html  4,132 check-ins · 951 breweries
+  venues.json     1,422 entries
+  venues.csv      1,422 rows
+```
+
+Use `-o <dir>` to write somewhere else, and `--open` to launch the map when it
+finishes.
+
+#### Write only some of it
+
+```bash
+untappd-parser <UNTAPPD-DATA>.json --only map
+untappd-parser <UNTAPPD-DATA>.json --only csv,json -o exports/
+```
+
+The artifacts are `map`, `stats`, `csv`, and `json`. The map needs venue
+coordinates, so it is skipped for any `--key` other than `venue`.
+
+A re-run refreshes the artifacts it writes, and clears leftovers from those same
+artifacts. Switching `--split-by-visits` off replaces the three bucket CSVs with
+`venues.csv` instead of leaving both. Artifacts you did not ask for are left
+alone, so `--only map` never touches your CSVs. Anything the tool cannot produce
+itself is never removed, and removals are reported.
+
+#### Split venues by visit frequency (1, 2-4, 5+ visits)
+```bash
+untappd-parser <UNTAPPD-DATA>.json --split-by-visits
+```
+
+This replaces `venues.csv` with three files: `venues-1-visit.csv`,
+`venues-2-4-visits.csv`, and `venues-5-plus-visits.csv`.
 
 #### Sort by a different key
 Available keys: `brewery_name`, `venue`, `beer_type`, `photo_url`, `bid`
@@ -36,49 +74,45 @@ Available keys: `brewery_name`, `venue`, `beer_type`, `photo_url`, `bid`
 untappd-parser <UNTAPPD-DATA>.json --key brewery_name
 ```
 
-#### Split venues by visit frequency (1, 2-4, 5+ visits)
-```bash
-untappd-parser <UNTAPPD-DATA>.json --split-by-visits
-```
+#### The map page
 
-This creates 3 separate CSV files:
-- `*_1_visit.csv` - venues with exactly 1 visit
-- `*_2-4_visits.csv` - venues with 2-4 visits
-- `*_5+_visits.csv` - venues with 5 or more visits
-
-#### Export a GeoJSON venue map (for beermap.html)
-```bash
-untappd-parser <UNTAPPD-DATA>.json --geojson
-```
-
-This writes `*_unique_venue.geojson`, a FeatureCollection with one point per
-venue. Each feature carries the venue name and location, the check-in count
-and dates (day precision), unique beer and brewery counts, the top styles,
-and the newest beer. Ratings, comments, tagged friends, and exact times stay
-out of the file. `beermap.html` renders this file with
+`beermap.html` is one self-contained file with the venue GeoJSON inlined. Open
+it directly, or copy the single file to any static host. Each venue carries its
+name and location, the check-in count and dates (day precision), the serving
+type of each check-in, unique beer and brewery counts, the top styles, and the
+newest beer. Ratings, comments, tagged friends, and exact times stay out of the
+page. The map uses
 [MapLibre GL](https://maplibre.org) on [OpenFreeMap](https://openfreemap.org)
-tiles: copy `beermap.html` and the GeoJSON (renamed to `venues.geojson`) into
-one directory on any static host. The map has clustered bubbles, a heatmap
-view, a time slider with playback, hover popups, summary stats, and a dark
-mode that follows the system theme.
+tiles, so it needs internet for the tiles but no local server. It has clustered
+bubbles, a heatmap view, tabs to filter by serving style, a time slider with
+playback, hover popups, summary stats, and a dark mode that follows the system
+theme.
 
-#### Export dashboard stats (for beerstats.html)
-```bash
-untappd-parser <UNTAPPD-DATA>.json --dashboard
-```
+Add `?data=<url>` to load a separate data file instead of the inlined copy. The
+parameter is same-origin only, because the page CSP says so. Use it when an
+embedding page keeps its own data file, or when you want the browser to cache
+the page and the data apart. Without it the page uses the inlined data and makes
+no request.
 
-This writes `*_stats.json` with aggregate numbers only: check-ins per day,
-weekday and hour counts, ABV and IBU histograms, rating distributions, top
-breweries, brewery countries, and flavor tags. No single check-in appears in
-the file. `beerstats.html` renders it as a dashboard: a check-in calendar, a
-weekday and hour matrix, histograms, and top lists. Copy the page and the
-stats file (renamed to `stats.json`) into one directory on any static host.
+#### The stats page
+
+`beerstats.html` holds aggregate numbers only: check-ins per day, weekday and
+hour counts, ABV and IBU histograms, rating distributions, top breweries,
+brewery countries, and flavor tags. No single check-in appears in the page. It
+renders a check-in calendar, a weekday and hour matrix, histograms, and top
+lists. The page loads nothing over the network, so it works offline. It accepts
+the same `?data=` override.
+
+When both pages are written they link to each other.
 
 ##### Additional Flags
 
-- `--no-human-keys` - Keep original snake_case keys (e.g. `venue_name` instead of `Venue Name`)
-- `--no-strip-backend` - Keep all keys from the original JSON file
-- `--no-fancy-dates` - Keep dates in `YYYY-MM-DD HH:MM:SS` format instead of readable format
+Each of these is on by default and takes a `--no-` form to turn it off.
+
+- `--human-keys` / `--no-human-keys` - `Venue Name` instead of `venue_name`
+- `--strip-backend` / `--no-strip-backend` - drop backend-only keys
+- `--fancy-dates` / `--no-fancy-dates` - `January 01, 2024 at 06:00PM` instead
+  of `2024-01-01 18:00:00`
 
 ### Browser Interface (No installation required!)
 
@@ -93,7 +127,8 @@ bundle to maintain.
    ```
 2. **Open in browser**: http://localhost:8080/untappd.html
 3. **Drag and drop** your Untappd JSON file
-4. **Download** the processed CSVs with visit distribution
+4. **Download everything as a ZIP**, which holds the same files the CLI writes.
+   Individual buttons export one file at a time.
 
 ## Development
 
@@ -109,6 +144,11 @@ pixi run check       # lint + typecheck + test (what CI runs)
 
 The browser interface (`untappd.html`) loads `src/untappd_parser/` directly via
 Pyodide, so editing `parser.py` or `web.py` needs no rebuild — just reload the page.
+
+The map and dashboard pages live in `src/untappd_parser/templates/`. Each holds a
+placeholder token that `pages.py` replaces with the exported JSON. Edit a template
+and re-run the CLI to see the change; opening a template on its own shows an error
+banner, because the placeholder is not real data.
 
 ## License
 MIT

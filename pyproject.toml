@@ -34,11 +34,11 @@ untappd-parser = "untappd_parser.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-untappd_parser = ["py.typed"]
+untappd_parser = ["py.typed", "templates/*.html"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py313"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = [

@@ -2,11 +2,13 @@ import csv
 import html
 import io
 import json
+import zipfile
 
-from js import URL, Blob, FileReader, console, document, window
-from pyodide.ffi import create_once_callable, create_proxy
+from js import URL, Blob, FileReader, Object, console, document, window
+from pyodide.ffi import create_once_callable, create_proxy, to_js
 
 from untappd_parser import UntappdParser
+from untappd_parser.pages import render_beermap, render_beerstats
 
 
 class AppState:
@@ -84,7 +86,10 @@ def data_to_csv(data):
 
 
 def download_file(content, filename, mime_type="text/plain"):
-    blob = Blob.new([content], {"type": mime_type})
+    # A bare dict reaches JS as a PyProxy and the Blob type reads back as "dict".
+    # bytes needs the same treatment to arrive as a Uint8Array rather than a proxy.
+    payload = to_js(content) if isinstance(content, bytes) else content
+    blob = Blob.new([payload], to_js({"type": mime_type}, dict_converter=Object.fromEntries))
     url = URL.createObjectURL(blob)
 
     link = document.createElement("a")
@@ -302,13 +307,54 @@ def export_all_csv(event):
         download_file(csv_content, "venues_all.csv", "text/csv")
 
 
-def export_geojson(event):
+def export_beermap(event):
+    # No sibling link: this download lands on its own, so the link would be dead.
     if app_state.has_data():
         download_file(
-            json.dumps(app_state.venues_geojson, ensure_ascii=False, indent=1),
-            "venues.geojson",
-            "application/geo+json",
+            render_beermap(app_state.venues_geojson),
+            "beermap.html",
+            "text/html",
         )
+
+
+def export_beerstats(event):
+    if app_state.has_data():
+        download_file(
+            render_beerstats(app_state.parser.to_dashboard_stats()),
+            "beerstats.html",
+            "text/html",
+        )
+
+
+def export_everything(event):
+    if not app_state.has_data():
+        return
+    split_by_visits = document.getElementById("splitByVisits").checked
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
+        bundle.writestr(
+            "beermap.html", render_beermap(app_state.venues_geojson, link_to_stats=True)
+        )
+        bundle.writestr(
+            "beerstats.html",
+            render_beerstats(app_state.parser.to_dashboard_stats(), link_to_map=True),
+        )
+        bundle.writestr(
+            "venues.json", json.dumps(app_state.cleaned_data, indent=2, ensure_ascii=False)
+        )
+        if split_by_visits:
+            distribution = app_state.parser.get_visit_distribution(app_state.cleaned_data)
+            for bucket, filename in (
+                ("1_visit", "venues-1-visit.csv"),
+                ("2-4_visits", "venues-2-4-visits.csv"),
+                ("5+_visits", "venues-5-plus-visits.csv"),
+            ):
+                if distribution[bucket]:
+                    bundle.writestr(filename, data_to_csv(distribution[bucket]))
+        else:
+            bundle.writestr("venues.csv", data_to_csv(app_state.cleaned_data))
+    download_file(archive.getvalue(), "beer.zip", "application/zip")
+    show_alert("Exported everything as beer.zip", "success")
 
 
 def export_1_visit(event):
@@ -388,8 +434,14 @@ def init_app():
     document.getElementById("exportAllCSVBtn").addEventListener(
         "click", create_proxy(export_all_csv)
     )
-    document.getElementById("exportGeoJSONBtn").addEventListener(
-        "click", create_proxy(export_geojson)
+    document.getElementById("exportEverythingBtn").addEventListener(
+        "click", create_proxy(export_everything)
+    )
+    document.getElementById("exportBeermapBtn").addEventListener(
+        "click", create_proxy(export_beermap)
+    )
+    document.getElementById("exportBeerstatsBtn").addEventListener(
+        "click", create_proxy(export_beerstats)
     )
     document.getElementById("export1Btn").addEventListener("click", create_proxy(export_1_visit))
     document.getElementById("export24Btn").addEventListener(

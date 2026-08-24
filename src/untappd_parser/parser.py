@@ -83,6 +83,9 @@ class UntappdParser:
                     **entry,
                     "total_venue_checkins": 1,
                     "checkin_dates": [entry.get("created_at")] if entry.get("created_at") else [],
+                    "checkin_servings": [entry.get("serving_type") or ""]
+                    if entry.get("created_at")
+                    else [],
                 }
                 venue_beers[venue] = set()
                 venue_breweries[venue] = set()
@@ -92,6 +95,7 @@ class UntappdParser:
                 venue_info[venue]["total_venue_checkins"] += 1
                 if entry.get("created_at"):
                     venue_info[venue]["checkin_dates"].append(entry["created_at"])
+                    venue_info[venue]["checkin_servings"].append(entry.get("serving_type") or "")
 
             if entry.get("beer_name"):
                 # bid distinguishes different beers that share a name.
@@ -114,8 +118,14 @@ class UntappdParser:
 
         result = []
         for venue, info in venue_info.items():
-            dates = info["checkin_dates"]
-            dates.sort()
+            # checkin_servings is positional against checkin_dates; sort them together.
+            ordered = sorted(
+                zip(info["checkin_dates"], info["checkin_servings"], strict=True),
+                key=lambda pair: pair[0],
+            )
+            dates = [date for date, _ in ordered]
+            info["checkin_dates"] = dates
+            info["checkin_servings"] = [serving for _, serving in ordered]
 
             if dates:
                 info["first_checkin"] = dates[0]
@@ -238,6 +248,7 @@ class UntappdParser:
                     "first_checkin",
                     "last_checkin",
                     "checkin_dates",
+                    "checkin_servings",
                 )
                 if entry.get(key) is not None
             }
@@ -257,11 +268,6 @@ class UntappdParser:
                 }
             )
         return {"type": "FeatureCollection", "features": features}
-
-    def save_geojson(self, data: list[dict[str, Any]], filename: str) -> None:
-        # indent=1 keeps refresh diffs readable when the file is committed to a site repo.
-        with Path(filename).open("w", encoding="utf-8") as f:
-            json.dump(self.to_geojson(data), f, ensure_ascii=False, indent=1)
 
     def to_dashboard_stats(self) -> dict[str, Any]:
         checkins_per_day: Counter[str] = Counter()
@@ -371,10 +377,6 @@ class UntappdParser:
             ],
         }
 
-    def save_dashboard_stats(self, filename: str) -> None:
-        with Path(filename).open("w", encoding="utf-8") as f:
-            json.dump(self.to_dashboard_stats(), f, ensure_ascii=False, indent=1)
-
     def get_visit_distribution(self, data: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
         single_visit: list[dict[str, Any]] = []
         two_to_four_visits: list[dict[str, Any]] = []
@@ -395,21 +397,36 @@ class UntappdParser:
             "5+_visits": five_plus_visits,
         }
 
-    def save_files(
-        self, data: list[dict[str, Any]], base_filename: str, split_by_visits: bool = False
-    ) -> None:
-        with Path(f"{base_filename}.json").open("w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-
-        # Non-venue rows have no visit counts and land in no bucket; fall back to a single CSV.
-        wrote_split = split_by_visits and self._save_visit_distribution_csvs(data, base_filename)
-        if not wrote_split:
-            self._save_csv(data, f"{base_filename}.csv")
-
-    def _save_csv(self, data: list[dict[str, Any]], filename: str) -> None:
+    def save_csvs(
+        self,
+        data: list[dict[str, Any]],
+        out_dir: Path,
+        base: str,
+        split_by_visits: bool = False,
+    ) -> list[tuple[str, int]]:
         if not data:
-            return
+            return []
 
+        if split_by_visits:
+            distribution = self.get_visit_distribution(data)
+            buckets = [
+                (distribution["1_visit"], f"{base}-1-visit.csv"),
+                (distribution["2-4_visits"], f"{base}-2-4-visits.csv"),
+                (distribution["5+_visits"], f"{base}-5-plus-visits.csv"),
+            ]
+            written = []
+            for rows, filename in buckets:
+                if rows:
+                    self._save_csv(rows, out_dir / filename)
+                    written.append((filename, len(rows)))
+            # Non-venue rows have no visit counts and land in no bucket; fall back below.
+            if written:
+                return written
+
+        self._save_csv(data, out_dir / f"{base}.csv")
+        return [(f"{base}.csv", len(data))]
+
+    def _save_csv(self, data: list[dict[str, Any]], path: Path) -> None:
         # Rows can have heterogeneous key sets; union them so DictWriter never raises.
         fieldnames = list(dict.fromkeys(key for entry in data for key in entry))
         # List values (checkin_dates, top_styles) would render as Python reprs.
@@ -420,27 +437,10 @@ class UntappdParser:
             }
             for entry in data
         ]
-        with Path(filename).open("w", newline="", encoding="utf-8") as f:
+        with path.open("w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(rows)
-
-    def _save_visit_distribution_csvs(self, data: list[dict[str, Any]], base_filename: str) -> bool:
-        distribution = self.get_visit_distribution(data)
-
-        distributions = [
-            (distribution["1_visit"], f"{base_filename}_1_visit.csv", "1 visit"),
-            (distribution["2-4_visits"], f"{base_filename}_2-4_visits.csv", "2-4 visits"),
-            (distribution["5+_visits"], f"{base_filename}_5+_visits.csv", "5+ visits"),
-        ]
-
-        wrote_any = False
-        for venues, filename, desc in distributions:
-            if venues:
-                self._save_csv(venues, filename)
-                print(f"  - {desc}: {len(venues)} venues saved to {filename}")
-                wrote_any = True
-        return wrote_any
 
     def get_stats(
         self, key: str = "venue", unique_entries: list[dict[str, Any]] | None = None

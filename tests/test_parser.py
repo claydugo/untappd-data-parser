@@ -6,12 +6,18 @@ parser cares about plus a couple of "backend" keys that `strip_backend` drops.
 
 import csv
 import json
-from pathlib import Path
 
 import pytest
 
 from untappd_parser import UntappdParser, VenueLocation
 from untappd_parser.cli import main as cli_main
+from untappd_parser.pages import render_beermap, render_beerstats
+
+
+def _inlined_json(page, element_id):
+    marker = f'<script type="application/json" id="{element_id}">'
+    start = page.index(marker) + len(marker)
+    return json.loads(page[start : page.index("</script>", start)])
 
 
 def _checkin(beer, brewery, venue, lat, lng, created_at, **extra):
@@ -227,10 +233,9 @@ def test_csv_export_handles_heterogeneous_rows(tmp_path, sample_data):
     data = [*sample_data, _checkin("Mystery", "Unknown", "The Void", 43.0, -78.0, "not-a-date")]
     parser = UntappdParser(data=data)
     cleaned = parser.clean_data(parser.get_unique_entries("venue"))
-    base = str(tmp_path / "out_unique_venue")
-    parser.save_files(cleaned, base)
+    parser.save_csvs(cleaned, tmp_path, "venues")
 
-    with Path(f"{base}.csv").open(encoding="utf-8") as f:
+    with (tmp_path / "venues.csv").open(encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     assert len(rows) == 4
 
@@ -257,24 +262,22 @@ def test_split_by_visits_no_longer_depends_on_filename(tmp_path, parser):
     # Splitting used to be gated on "venue" appearing in the filename.
     venues = parser.get_unique_entries("venue")
     cleaned = parser.clean_data(venues)
-    base = str(tmp_path / "out")
-    parser.save_files(cleaned, base, split_by_visits=True)
-    assert Path(f"{base}_1_visit.csv").exists()
-    assert Path(f"{base}_2-4_visits.csv").exists()
-    assert Path(f"{base}_5+_visits.csv").exists()
+    parser.save_csvs(cleaned, tmp_path, "venues", split_by_visits=True)
+    assert (tmp_path / "venues-1-visit.csv").exists()
+    assert (tmp_path / "venues-2-4-visits.csv").exists()
+    assert (tmp_path / "venues-5-plus-visits.csv").exists()
 
 
 def test_split_by_visits_falls_back_to_single_csv_without_visit_counts(tmp_path, parser):
     # Non-venue data matches no visit bucket; a single CSV must be written, not none.
     breweries = parser.get_unique_entries("brewery_name")
     cleaned = parser.clean_data(breweries, preserve_keys={"brewery_name"})
-    base = str(tmp_path / "out_unique_brewery_name")
-    parser.save_files(cleaned, base, split_by_visits=True)
+    parser.save_csvs(cleaned, tmp_path, "brewery_name", split_by_visits=True)
 
-    with Path(f"{base}.csv").open(encoding="utf-8") as f:
+    with (tmp_path / "brewery_name.csv").open(encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     assert len(rows) == 4
-    assert not list(tmp_path.glob("*_visit*.csv"))
+    assert not list(tmp_path.glob("*-visit*.csv"))
 
 
 def test_stats_accept_precomputed_unique_entries(parser):
@@ -305,6 +308,39 @@ def test_to_geojson_includes_aggregates_and_dates(parser):
     assert tavern["properties"]["last_beer_name"] == "Focal"
     assert tavern["properties"]["last_beer_brewery"] == "The Alchemist"
     assert tavern["properties"]["checkin_dates"] == ["2024-01-01", "2024-02-01", "2024-03-01"]
+
+
+def test_to_geojson_keeps_servings_aligned_with_dates():
+    data = [
+        _checkin(
+            "Focal",
+            "The Alchemist",
+            "The Tavern",
+            40.0,
+            -75.0,
+            "2024-03-01 18:00:00",
+            serving_type="Cask",
+        ),
+        _checkin(
+            "Pliny",
+            "Russian River",
+            "The Tavern",
+            40.0,
+            -75.0,
+            "2024-01-01 18:00:00",
+            serving_type="Draft",
+        ),
+        _checkin("Heady", "The Alchemist", "The Tavern", 40.0, -75.0, "2024-02-01 18:00:00"),
+    ]
+    features = UntappdParser(data=data).to_geojson(
+        UntappdParser(data=data).get_unique_entries("venue")
+    )["features"]
+    assert features[0]["properties"]["checkin_dates"] == [
+        "2024-01-01",
+        "2024-02-01",
+        "2024-03-01",
+    ]
+    assert features[0]["properties"]["checkin_servings"] == ["Draft", "", "Cask"]
 
 
 def test_to_geojson_keeps_location_drops_private_fields(parser):
@@ -360,18 +396,19 @@ def test_to_geojson_coerces_strings_and_skips_non_finite(parser):
     assert features[0]["geometry"]["coordinates"] == [-75.0, 40.0]
 
 
-def test_cli_geojson_keeps_dates_with_no_strip_backend(tmp_path, sample_data, monkeypatch):
+def test_cli_beermap_keeps_dates_with_no_strip_backend(tmp_path, sample_data, monkeypatch):
     # clean_data mutates entries in place under --no-strip-backend; the CLI must
-    # write the GeoJSON before cleaning or the check-in dates silently vanish.
+    # render the page before cleaning or the check-in dates silently vanish.
     export = tmp_path / "export.json"
     export.write_text(json.dumps(sample_data), encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "sys.argv", ["untappd-parser", str(export), "--geojson", "--no-strip-backend"]
+        "sys.argv", ["untappd-parser", str(export), "--only", "map", "--no-strip-backend"]
     )
     cli_main()
 
-    geojson = json.loads((tmp_path / "export_unique_venue.geojson").read_text(encoding="utf-8"))
+    page = (tmp_path / "beer" / "beermap.html").read_text(encoding="utf-8")
+    geojson = _inlined_json(page, "venue-data")
     tavern = next(f for f in geojson["features"] if f["properties"]["venue_name"] == "The Tavern")
     assert tavern["properties"]["first_checkin"] == "2024-01-01"
     assert tavern["properties"]["last_checkin"] == "2024-03-01"
@@ -444,43 +481,179 @@ def test_dashboard_stats_empty_data():
 def test_csv_serializes_list_values(tmp_path, parser):
     venues = parser.get_unique_entries("venue")
     cleaned = parser.clean_data(venues, strip_backend=False, fancy_dates=False, human_keys=False)
-    base = str(tmp_path / "out")
-    parser.save_files(cleaned, base)
+    parser.save_csvs(cleaned, tmp_path, "venues")
 
-    with Path(f"{base}.csv").open(encoding="utf-8") as f:
+    with (tmp_path / "venues.csv").open(encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     tavern = next(row for row in rows if row["venue_name"] == "The Tavern")
     assert tavern["top_styles"] == "IPA"
     assert tavern["checkin_dates"].startswith("2024-01-01 18:00:00; ")
 
 
-def test_cli_dashboard_writes_stats(tmp_path, sample_data, monkeypatch):
+def test_cli_beerstats_writes_page(tmp_path, sample_data, monkeypatch):
     export = tmp_path / "export.json"
     export.write_text(json.dumps(sample_data), encoding="utf-8")
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("sys.argv", ["untappd-parser", str(export), "--dashboard"])
+    monkeypatch.setattr("sys.argv", ["untappd-parser", str(export), "--only", "stats"])
     cli_main()
 
-    stats = json.loads((tmp_path / "export_stats.json").read_text(encoding="utf-8"))
+    page = (tmp_path / "beer" / "beerstats.html").read_text(encoding="utf-8")
+    stats = _inlined_json(page, "stats-data")
     assert stats["totals"]["checkins"] == 10
     assert stats["totals"]["unique_venues"] == 3
 
 
-def test_save_geojson_writes_file(tmp_path, parser):
-    venues = parser.get_unique_entries("venue")
-    path = tmp_path / "venues.geojson"
-    parser.save_geojson(venues, str(path))
-    geojson = json.loads(path.read_text(encoding="utf-8"))
-    assert len(geojson["features"]) == 3
+def test_cli_writes_everything_into_one_directory(tmp_path, sample_data, monkeypatch):
+    export = tmp_path / "export.json"
+    export.write_text(json.dumps(sample_data), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sys.argv", ["untappd-parser", str(export)])
+    cli_main()
+
+    assert sorted(p.name for p in (tmp_path / "beer").iterdir()) == [
+        "beermap.html",
+        "beerstats.html",
+        "venues.csv",
+        "venues.json",
+    ]
 
 
-def test_save_files_writes_json_and_split_csvs(tmp_path, parser):
+def test_cli_out_dir_and_only(tmp_path, sample_data, monkeypatch):
+    export = tmp_path / "export.json"
+    export.write_text(json.dumps(sample_data), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "sys.argv", ["untappd-parser", str(export), "-o", "site", "--only", "map,csv"]
+    )
+    cli_main()
+
+    assert sorted(p.name for p in (tmp_path / "site").iterdir()) == [
+        "beermap.html",
+        "venues.csv",
+    ]
+
+
+def test_cli_clears_its_own_stale_files(tmp_path, sample_data, monkeypatch):
+    # A dir reused with other flags must not keep last run's data as if it were fresh.
+    export = tmp_path / "export.json"
+    export.write_text(json.dumps(sample_data), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    monkeypatch.setattr(
+        "sys.argv", ["untappd-parser", str(export), "--only", "csv", "--split-by-visits"]
+    )
+    cli_main()
+    assert (tmp_path / "beer" / "venues-1-visit.csv").exists()
+
+    monkeypatch.setattr("sys.argv", ["untappd-parser", str(export), "--only", "csv"])
+    cli_main()
+    assert sorted(p.name for p in (tmp_path / "beer").iterdir()) == ["venues.csv"]
+
+
+def test_cli_only_does_not_delete_the_artifacts_it_skipped(tmp_path, sample_data, monkeypatch):
+    # --only narrows what gets written. It must not clear the rest of the directory.
+    export = tmp_path / "export.json"
+    export.write_text(json.dumps(sample_data), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    monkeypatch.setattr("sys.argv", ["untappd-parser", str(export)])
+    cli_main()
+    monkeypatch.setattr("sys.argv", ["untappd-parser", str(export), "--only", "map"])
+    cli_main()
+
+    assert sorted(p.name for p in (tmp_path / "beer").iterdir()) == [
+        "beermap.html",
+        "beerstats.html",
+        "venues.csv",
+        "venues.json",
+    ]
+
+
+def test_cli_leaves_unrelated_files_alone(tmp_path, sample_data, monkeypatch):
+    export = tmp_path / "export.json"
+    export.write_text(json.dumps(sample_data), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "beer").mkdir()
+    keeper = tmp_path / "beer" / "notes.txt"
+    keeper.write_text("mine", encoding="utf-8")
+
+    monkeypatch.setattr("sys.argv", ["untappd-parser", str(export), "--only", "csv"])
+    cli_main()
+    assert keeper.read_text(encoding="utf-8") == "mine"
+
+
+def test_cli_rejects_an_unknown_artifact(tmp_path, sample_data, monkeypatch, capsys):
+    export = tmp_path / "export.json"
+    export.write_text(json.dumps(sample_data), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sys.argv", ["untappd-parser", str(export), "--only", "map,bogus"])
+    with pytest.raises(SystemExit):
+        cli_main()
+    assert "unknown artifact bogus" in capsys.readouterr().err
+
+
+def test_cli_rejects_an_out_dir_that_is_a_file(tmp_path, sample_data, monkeypatch, capsys):
+    export = tmp_path / "export.json"
+    export.write_text(json.dumps(sample_data), encoding="utf-8")
+    (tmp_path / "blocker").write_text("", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sys.argv", ["untappd-parser", str(export), "-o", "blocker"])
+    with pytest.raises(SystemExit):
+        cli_main()
+    assert "not a directory" in capsys.readouterr().err
+
+
+def test_pages_link_to_each_other_only_when_both_are_written(parser):
+    geojson = parser.to_geojson(parser.get_unique_entries("venue"))
+    assert 'href="beerstats.html"' in render_beermap(geojson, link_to_stats=True)
+    assert 'href="beerstats.html"' not in render_beermap(geojson)
+    stats = parser.to_dashboard_stats()
+    assert 'href="beermap.html"' in render_beerstats(stats, link_to_map=True)
+    assert 'href="beermap.html"' not in render_beerstats(stats)
+
+
+def test_rendered_pages_carry_no_placeholder(parser):
+    beermap = render_beermap(parser.to_geojson(parser.get_unique_entries("venue")))
+    beerstats = render_beerstats(parser.to_dashboard_stats())
+    assert "__UNTAPPD_VENUE_DATA__" not in beermap
+    assert "__UNTAPPD_STATS_DATA__" not in beerstats
+    assert "__UNTAPPD_SIBLING_LINK__" not in beermap
+    assert "__UNTAPPD_SIBLING_LINK__" not in beerstats
+    assert len(_inlined_json(beermap, "venue-data")["features"]) == 3
+    assert _inlined_json(beerstats, "stats-data")["totals"]["unique_venues"] == 3
+
+
+def test_rendered_pages_keep_the_data_override(parser):
+    # ?data= lets an embedding page swap in its own copy; it is easy to drop by accident.
+    beermap = render_beermap(parser.to_geojson(parser.get_unique_entries("venue")))
+    beerstats = render_beerstats(parser.to_dashboard_stats())
+    for page in (beermap, beerstats):
+        assert 'new URLSearchParams(location.search).get("data")' in page
+
+
+def test_render_beermap_escapes_markup_in_venue_names():
+    # A venue name holding a closing script tag would end the data block early.
+    data = [
+        _checkin("Pliny", "R&R", "</script><script>alert(1)</script>", 40.0, -75.0, None),
+    ]
+    parser = UntappdParser(data=data)
+    page = render_beermap(parser.to_geojson(parser.get_unique_entries("venue")))
+
+    assert "</script><script>alert(1)" not in page
+    properties = _inlined_json(page, "venue-data")["features"][0]["properties"]
+    assert properties["venue_name"] == "</script><script>alert(1)</script>"
+
+
+def test_save_csvs_reports_what_it_wrote(tmp_path, parser):
     venues = parser.get_unique_entries("venue")
     cleaned = parser.clean_data(venues)
-    base = str(tmp_path / "out_unique_venue")
-    parser.save_files(cleaned, base, split_by_visits=True)
+    written = parser.save_csvs(cleaned, tmp_path, "venues", split_by_visits=True)
 
-    assert json.loads(Path(f"{base}.json").read_text(encoding="utf-8"))
-    with Path(f"{base}_5+_visits.csv").open(encoding="utf-8") as f:
+    assert written == [
+        ("venues-1-visit.csv", 1),
+        ("venues-2-4-visits.csv", 1),
+        ("venues-5-plus-visits.csv", 1),
+    ]
+    with (tmp_path / "venues-5-plus-visits.csv").open(encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     assert [row["Venue Name"] for row in rows] == ["The Cellar"]

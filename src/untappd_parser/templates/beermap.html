@@ -98,6 +98,17 @@
 				font-size: 13px;
 				color: var(--panel-text);
 			}
+			.sibling {
+				padding: 6px 10px;
+			}
+			.sibling a {
+				color: var(--accent);
+				text-decoration: none;
+				font-weight: 600;
+			}
+			.sibling a:hover {
+				text-decoration: underline;
+			}
 			.top-left {
 				position: absolute;
 				top: 12px;
@@ -214,6 +225,7 @@
 		<div id="map"></div>
 		<div class="top-left">
 			<div class="panel stats" id="stats" hidden></div>
+			<!--__UNTAPPD_SIBLING_LINK__-->
 			<div class="panel view-toggle" id="view-toggle" hidden>
 				<button id="bubbles-button" class="active" type="button">Bubbles</button>
 				<button id="heatmap-button" type="button">Heatmap</button>
@@ -222,6 +234,13 @@
 				<button id="metric-checkins" class="active" type="button">Check-ins</button>
 				<button id="metric-beers" type="button">Beers</button>
 				<button id="metric-abv" type="button">ABV</button>
+			</div>
+			<div class="panel view-toggle" id="serving-toggle" hidden>
+				<button id="serving-all" class="active" type="button">All</button>
+				<button id="serving-draft" type="button">Draft</button>
+				<button id="serving-bottle" type="button">Bottle</button>
+				<button id="serving-can" type="button">Can</button>
+				<button id="serving-cask" type="button">Cask</button>
 			</div>
 		</div>
 		<div class="panel legend" id="legend" hidden>
@@ -244,6 +263,7 @@
 			<input id="time-slider" type="range" min="0" max="0" value="0" aria-label="Check-in date cutoff">
 			<span class="time-label" id="time-label">All check-ins</span>
 		</div>
+		<script type="application/json" id="venue-data">"__UNTAPPD_VENUE_DATA__"</script>
 		<script type="module">
 			import * as maplibregl from "https://cdn.jsdelivr.net/npm/maplibre-gl@6.0.0/dist/maplibre-gl.mjs";
 
@@ -292,6 +312,14 @@
 				beers: document.getElementById("metric-beers"),
 				abv: document.getElementById("metric-abv"),
 			};
+			const servingToggleElement = document.getElementById("serving-toggle");
+			const servingButtons = {
+				all: document.getElementById("serving-all"),
+				draft: document.getElementById("serving-draft"),
+				bottle: document.getElementById("serving-bottle"),
+				can: document.getElementById("serving-can"),
+				cask: document.getElementById("serving-cask"),
+			};
 			const legendElement = document.getElementById("legend");
 			const timeControlElement = document.getElementById("time-control");
 			const playButton = document.getElementById("play-button");
@@ -302,6 +330,8 @@
 			let filteredCollection = null;
 			const propertiesById = new Map();
 			let viewMode = "bubbles";
+			// "all" keeps every check-in; any other value matches checkin_servings.
+			let activeServing = "all";
 			let timeline = null;
 			let playTimer = null;
 
@@ -474,31 +504,56 @@
 						const dates = Array.isArray(feature.properties.checkin_dates)
 							? feature.properties.checkin_dates
 							: [];
-						const times = dates
-							.filter(Boolean)
-							.map(parseCheckinTime)
-							.filter((time) => time !== null)
-							.sort((a, b) => a - b);
-						return { feature, times };
+						// checkin_servings is positional against checkin_dates.
+						const servings = Array.isArray(feature.properties.checkin_servings)
+							? feature.properties.checkin_servings
+							: [];
+						const checkins = [];
+						for (const [position, date] of dates.entries()) {
+							const time = parseCheckinTime(date);
+							if (time === null) {
+								continue;
+							}
+							checkins.push({ time, serving: String(servings[position] ?? "").toLowerCase() });
+						}
+						checkins.sort((first, second) => first.time - second.time);
+						return { feature, checkins };
 					});
+			}
+
+			function hasServingData() {
+				return canonicalFeatures.some(({ checkins }) =>
+					checkins.some((checkin) => checkin.serving !== ""),
+				);
 			}
 
 			function applyCutoff(cutoffMs) {
 				const features = [];
 				propertiesById.clear();
-				for (const { feature, times } of canonicalFeatures) {
+				for (const { feature, checkins } of canonicalFeatures) {
 					let visibleCheckins;
-					if (cutoffMs === Infinity || times.length === 0) {
+					if (cutoffMs === Infinity && activeServing === "all") {
 						visibleCheckins = feature.properties.total_venue_checkins
-							?? Math.max(times.length, 1);
+							?? Math.max(checkins.length, 1);
+					} else if (checkins.length === 0) {
+						// A file from before the per-check-in fields existed cannot be filtered.
+						if (activeServing !== "all") {
+							continue;
+						}
+						visibleCheckins = feature.properties.total_venue_checkins ?? 1;
 					} else {
-						visibleCheckins = times.filter((time) => time <= cutoffMs).length;
+						visibleCheckins = checkins.filter(
+							(checkin) =>
+								checkin.time <= cutoffMs
+								&& (activeServing === "all" || checkin.serving === activeServing),
+						).length;
 						if (visibleCheckins === 0) {
 							continue;
 						}
 					}
 					const properties = { ...feature.properties, total_venue_checkins: visibleCheckins };
 					delete properties.checkin_dates;
+					delete properties.checkin_servings;
 					propertiesById.set(properties.venue_id, properties);
 					features.push({ type: "Feature", geometry: feature.geometry, properties });
 				}
@@ -564,6 +619,21 @@
 			}
 			for (const [metricName, button] of Object.entries(metricButtons)) {
 				button.addEventListener("click", () => setMetric(metricName));
+			}
+
+			function currentCutoff() {
+				return timeline ? sliderCutoff() : Infinity;
+			}
+
+			function setServing(name) {
+				activeServing = name;
+				for (const [servingName, button] of Object.entries(servingButtons)) {
+					button.classList.toggle("active", servingName === name);
+				}
+				applyCutoff(currentCutoff());
+			}
+			for (const [servingName, button] of Object.entries(servingButtons)) {
+				button.addEventListener("click", () => setServing(servingName));
 			}
 
 			function addMapData() {
@@ -704,8 +774,8 @@
 				// A loop, not Math.min(...spread): engines throw past ~65k arguments.
 				let startMs = Infinity;
 				let endMs = -Infinity;
-				for (const { times } of canonicalFeatures) {
-					for (const time of times) {
+				for (const { checkins } of canonicalFeatures) {
+					for (const { time } of checkins) {
 						if (time < startMs) startMs = time;
 						if (time > endMs) endMs = time;
 					}
@@ -775,13 +845,18 @@
 				mapLoaded = true;
 				let venues;
 				try {
-					// ?data= lets an embedding page point at its own copy; CSP limits it to same-origin.
-					const dataUrl = new URLSearchParams(location.search).get("data") ?? "./venues.geojson";
-					const response = await fetch(dataUrl);
-					if (!response.ok) {
-						throw new Error(`HTTP ${response.status}`);
+					// The data is inlined by default. ?data= lets an embedding page point at a
+					// separately cached copy instead; CSP limits it to same-origin.
+					const dataUrl = new URLSearchParams(location.search).get("data");
+					if (dataUrl) {
+						const response = await fetch(dataUrl);
+						if (!response.ok) {
+							throw new Error(`HTTP ${response.status}`);
+						}
+						venues = await response.json();
+					} else {
+						venues = JSON.parse(document.getElementById("venue-data").textContent);
 					}
-					venues = await response.json();
 					if (!Array.isArray(venues?.features)) {
 						throw new Error("venue data is not a FeatureCollection");
 					}
@@ -798,6 +873,7 @@
 				setupTimeline();
 				viewToggleElement.hidden = false;
 				metricToggleElement.hidden = viewMode !== "bubbles";
+				servingToggleElement.hidden = !hasServingData();
 				legendElement.hidden = viewMode !== "bubbles";
 
 				if (!startedWithHash) {

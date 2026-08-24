@@ -21,6 +21,9 @@ env/
 *.json
 *.csv
 
+# Default --out-dir for the CLI.
+beer/
+
 # pixi environments
 .pixi/*
 !.pixi/config.toml

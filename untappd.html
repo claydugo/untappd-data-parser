@@ -163,9 +163,11 @@
 					</div>
 
 					<div class="export-buttons">
+						<button class="btn" id="exportEverythingBtn">📦 Download Everything (ZIP)</button>
 						<button class="btn" id="exportAllBtn">📥 Export All Venues (JSON)</button>
 						<button class="btn" id="exportAllCSVBtn">📊 Export All Venues (CSV)</button>
-						<button class="btn" id="exportGeoJSONBtn">🗺️ Export Map Data (GeoJSON)</button>
+						<button class="btn" id="exportBeermapBtn">🗺️ Export Beer Map (HTML)</button>
+						<button class="btn" id="exportBeerstatsBtn">📈 Export Beer Stats (HTML)</button>
 						<div id="split-buttons">
 							<button class="btn btn-secondary" id="export1Btn">1️⃣ Export 1 Visit CSV</button>
 							<button class="btn btn-secondary" id="export24Btn">2️⃣ Export 2-4 Visits CSV</button>
@@ -182,7 +184,16 @@
 		<script type="module">
 			const PYODIDE_URL = "https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide.mjs";
 			const PACKAGE_DIR = "/untappd_parser";
-			const PACKAGE_FILES = ["__init__.py", "parser.py", "web.py"];
+			// pages.py reads the templates through importlib.resources, so the
+			// templates/ subdirectory has to exist on the Pyodide filesystem too.
+			const PACKAGE_FILES = [
+				"__init__.py",
+				"pages.py",
+				"parser.py",
+				"web.py",
+				"templates/beermap.html",
+				"templates/beerstats.html",
+			];
 
 			async function main() {
 				const sourcesPromise = Promise.all(
@@ -197,7 +208,7 @@
 				// A static import failing would kill the module before the catch below exists.
 				const { loadPyodide } = await import(PYODIDE_URL);
 				const [pyodide, sources] = await Promise.all([loadPyodide(), sourcesPromise]);
-				pyodide.FS.mkdirTree(PACKAGE_DIR);
+				pyodide.FS.mkdirTree(`${PACKAGE_DIR}/templates`);
 				PACKAGE_FILES.forEach((name, i) => {
 					pyodide.FS.writeFile(`${PACKAGE_DIR}/${name}`, sources[i]);
 				});
