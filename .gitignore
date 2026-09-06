@@ -1,5 +1,6 @@
 .claude/
 .playwright-mcp/
+node_modules/
 
 # Python
 __pycache__/

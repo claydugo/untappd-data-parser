@@ -6,7 +6,7 @@
 		<title>Untappd Data Parser</title>
 		<meta
 			http-equiv="Content-Security-Policy"
-			content="default-src 'self' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data:; worker-src 'self' blob:;"
+			content="default-src 'self' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data:; worker-src 'self' blob:;"
 		>
 		<link rel="preconnect" href="https://cdn.jsdelivr.net">
 		<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
@@ -110,6 +110,10 @@
 							<input type="checkbox" id="splitByVisits" checked>
 							<span>Create separate CSVs by visit count (1, 2-4, 5+)</span>
 						</label>
+						<label class="checkbox-label">
+							<input type="checkbox" id="excludeUntappdAtHome">
+							<span>Exclude Untappd at Home from the map</span>
+						</label>
 					</div>
 				</div>
 
@@ -181,7 +185,7 @@
 			</div>
 		</div>
 
-		<script type="module">
+		<script id="parser-worker" type="text/plain">
 			const PYODIDE_URL = "https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide.mjs";
 			const PACKAGE_DIR = "/untappd_parser";
 			// pages.py reads the templates through importlib.resources, so the
@@ -195,37 +199,46 @@
 				"templates/beerstats.html",
 			];
 
-			async function main() {
-				const sourcesPromise = Promise.all(
-					PACKAGE_FILES.map(async (name) => {
-						const response = await fetch(`./src/untappd_parser/${name}`);
+			async function main(configuration) {
+				const [sources, moduleEntries] = await Promise.all([
+					Promise.all(PACKAGE_FILES.map(async (name) => {
+						const response = await fetch(new URL(`./src/untappd_parser/${name}`, configuration.baseUrl));
 						if (!response.ok) {
 							throw new Error(`Failed to fetch ${name}: HTTP ${response.status}`);
 						}
 						return response.text();
-					}),
-				);
+					})),
+					Promise.all(Object.entries(configuration.integrity).map(async ([address, integrity]) => {
+						const response = await fetch(address, { integrity });
+						if (!response.ok) throw new Error(`Failed to load Python: HTTP ${response.status}`);
+						return [address, URL.createObjectURL(new Blob([await response.text()], { type: "text/javascript" }))];
+					})),
+				]);
+				const modules = new Map(moduleEntries);
 				// A static import failing would kill the module before the catch below exists.
-				const { loadPyodide } = await import(PYODIDE_URL);
-				const [pyodide, sources] = await Promise.all([loadPyodide(), sourcesPromise]);
+				const [{ loadPyodide }, { default: createPyodideModule }] = await Promise.all([
+					import(modules.get(PYODIDE_URL)),
+					import(modules.get(new URL("pyodide.asm.mjs", PYODIDE_URL).href)),
+				]);
+				const pyodide = await loadPyodide({ indexURL: new URL(".", PYODIDE_URL).href, createPyodideModule });
+				for (const address of modules.values()) URL.revokeObjectURL(address);
 				pyodide.FS.mkdirTree(`${PACKAGE_DIR}/templates`);
-				PACKAGE_FILES.forEach((name, i) => {
-					pyodide.FS.writeFile(`${PACKAGE_DIR}/${name}`, sources[i]);
+				PACKAGE_FILES.forEach((name, index) => {
+					pyodide.FS.writeFile(`${PACKAGE_DIR}/${name}`, sources[index]);
 				});
 				pyodide.runPython(
 					'import sys\nsys.path.insert(0, "/")\nfrom untappd_parser.web import init_app\ninit_app()',
 				);
 			}
 
-			main().catch((error) => {
-				console.error(error);
-				const message = document.getElementById("loading-message");
-				if (message) {
-					message.innerHTML =
-						"<p>Failed to load the Python environment. Please refresh the page to try again.</p>";
-				}
-			});
+			self.addEventListener("message", (event) => {
+				main(event.data).catch((error) => {
+					console.error(error);
+					self.postMessage({ type: "startup-error", message: error.message });
+				});
+			}, { once: true });
 		</script>
+		<script type="module" src="./src/untappd_parser/web.mjs"></script>
 
 		<a
 			href="https://github.com/claydugo/untappd-data-parser"

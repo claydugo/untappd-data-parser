@@ -365,13 +365,14 @@
 				return Number(value).toLocaleString("en-US");
 			}
 
+			const dayFormatter = new Intl.DateTimeFormat("en-US", {
+				year: "numeric",
+				month: "short",
+				day: "numeric",
+			});
 			function formatDay(day) {
 				const [year, month, date] = day.split("-").map(Number);
-				return new Date(year, month - 1, date).toLocaleDateString("en-US", {
-					year: "numeric",
-					month: "short",
-					day: "numeric",
-				});
+				return dayFormatter.format(new Date(year, month - 1, date));
 			}
 
 			function showError(message) {
@@ -435,7 +436,8 @@
 						yearTotal += count;
 						const cell = document.createElement("span");
 						cell.className = `cal-cell level-${calendarLevel(count)}`;
-						cell.dataset.tip = `${formatDay(key)}: ${formatCount(count)} check-in${count === 1 ? "" : "s"}`;
+						cell.dataset.day = key;
+						cell.dataset.checkins = String(count);
 						grid.appendChild(cell);
 						cursor.setDate(cursor.getDate() + 1);
 					}
@@ -555,10 +557,14 @@
 
 			const tooltip = document.getElementById("tooltip");
 			document.addEventListener("mousemove", (event) => {
-				const target = event.target.closest?.("[data-tip]");
+				const target = event.target.closest?.("[data-tip], [data-day]");
 				if (!target) {
 					tooltip.hidden = true;
 					return;
+				}
+				if (target.dataset.day && !target.dataset.tip) {
+					const count = Number(target.dataset.checkins);
+					target.dataset.tip = `${formatDay(target.dataset.day)}: ${formatCount(count)} check-in${count === 1 ? "" : "s"}`;
 				}
 				tooltip.textContent = target.dataset.tip;
 				tooltip.hidden = false;
@@ -623,6 +629,9 @@
 					tip: (bin, count) => {
 						const low = (bin * stats.abv_histogram.bin_width).toFixed(1);
 						const high = ((bin + 1) * stats.abv_histogram.bin_width).toFixed(1);
+						if (bin === stats.abv_histogram.counts.length - 1) {
+							return `${low}%+ ABV: ${formatCount(count)} check-ins`;
+						}
 						return `${low}–${high}% ABV: ${formatCount(count)} check-ins`;
 					},
 				}));
@@ -636,6 +645,9 @@
 						tip: (bin, count) => {
 							const low = bin * stats.ibu_histogram.bin_width;
 							const high = (bin + 1) * stats.ibu_histogram.bin_width;
+							if (bin === stats.ibu_histogram.counts.length - 1) {
+								return `${low}+ IBU: ${formatCount(count)} check-ins`;
+							}
 							return `${low}–${high} IBU: ${formatCount(count)} check-ins`;
 						},
 					});
@@ -644,7 +656,7 @@
 				sections.push(() => {
 					if (totals.average_rating != null && totals.average_global_rating != null) {
 						document.getElementById("ratings-note").textContent =
-							`I average ${totals.average_rating.toFixed(2)}; the crowd averages ${totals.average_global_rating.toFixed(2)} on the same beers.`;
+							`My rated check-ins average ${totals.average_rating.toFixed(2)}. Available crowd ratings average ${totals.average_global_rating.toFixed(2)}.`;
 					}
 					renderRatings(stats.rating_histograms);
 				});

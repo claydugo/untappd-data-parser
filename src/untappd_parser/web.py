@@ -1,10 +1,11 @@
-import csv
+import heapq
 import html
 import io
 import json
 import zipfile
 
-from js import URL, Blob, FileReader, Object, console, document, window
+from js import Blob, FileReader, Object, console
+from js import self as window
 from pyodide.ffi import create_once_callable, create_proxy, to_js
 
 from untappd_parser import UntappdParser
@@ -16,13 +17,16 @@ class AppState:
         self.parser = None
         self.processed_venues = None
         self.venues_geojson = None
+        self.dashboard_stats = None
         self.cleaned_data = None
         self.alert_timer = None
+        self.options = {}
 
     def reset(self):
         self.parser = None
         self.processed_venues = None
         self.venues_geojson = None
+        self.dashboard_stats = None
         self.cleaned_data = None
 
     def has_data(self):
@@ -32,25 +36,19 @@ class AppState:
 app_state = AppState()
 
 
+def publish(message):
+    window.postMessage(to_js(message, dict_converter=Object.fromEntries))
+
+
 # setTimeout needs a persistent proxy; a bare lambda is destroyed before the timer fires.
-_dismiss_alert = create_proxy(lambda: document.getElementById("alertsStatus").replaceChildren())
+_dismiss_alert = create_proxy(lambda: publish({"type": "dismiss-alert"}))
 
 
 def show_alert(message, alert_type="info"):
     allowed_types = {"info", "success", "error"}
     alert_class = alert_type if alert_type in allowed_types else "info"
 
-    error_region = document.getElementById("alertsError")
-    status_region = document.getElementById("alertsStatus")
-    target = error_region if alert_class == "error" else status_region
-    other = status_region if alert_class == "error" else error_region
-
-    alert_element = document.createElement("div")
-    alert_element.classList.add("alert", f"alert-{alert_class}")
-    alert_element.textContent = str(message)
-
-    other.replaceChildren()
-    target.replaceChildren(alert_element)
+    publish({"type": "alert", "message": str(message), "level": alert_class})
 
     if app_state.alert_timer is not None:
         window.clearTimeout(app_state.alert_timer)
@@ -72,13 +70,8 @@ def data_to_csv(data):
         return ""
 
     try:
-        output = io.StringIO()
         # Rows can have heterogeneous key sets; take the union so DictWriter never raises.
-        fieldnames = list(dict.fromkeys(key for entry in data for key in entry))
-        writer = csv.DictWriter(output, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(data)
-        return output.getvalue()
+        return UntappdParser.to_csv(data)
     except Exception as e:
         console.error(f"CSV generation error: {e!s}")
         show_alert("Error generating CSV file", "error")
@@ -90,14 +83,7 @@ def download_file(content, filename, mime_type="text/plain"):
     # bytes needs the same treatment to arrive as a Uint8Array rather than a proxy.
     payload = to_js(content) if isinstance(content, bytes) else content
     blob = Blob.new([payload], to_js({"type": mime_type}, dict_converter=Object.fromEntries))
-    url = URL.createObjectURL(blob)
-
-    link = document.createElement("a")
-    link.href = url
-    link.download = filename
-    link.click()
-
-    URL.revokeObjectURL(url)
+    publish({"type": "download", "blob": blob, "filename": filename})
 
 
 def process_file(file_content):
@@ -115,14 +101,17 @@ def process_file(file_content):
         if missing_fields:
             raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
 
-        human_keys = document.getElementById("humanKeys").checked
-        strip_backend = document.getElementById("stripBackend").checked
-        fancy_dates = document.getElementById("fancyDates").checked
+        human_keys = app_state.options["humanKeys"]
+        strip_backend = app_state.options["stripBackend"]
+        fancy_dates = app_state.options["fancyDates"]
 
         app_state.parser = UntappdParser(data=data)
         app_state.processed_venues = app_state.parser.get_unique_entries("venue")
         # clean_data mutates the venue dicts in place; capture the GeoJSON first.
-        app_state.venues_geojson = app_state.parser.to_geojson(app_state.processed_venues)
+        app_state.venues_geojson = app_state.parser.to_geojson(
+            app_state.processed_venues,
+            exclude_untappd_at_home=app_state.options["excludeUntappdAtHome"],
+        )
         app_state.cleaned_data = app_state.parser.clean_data(
             app_state.processed_venues,
             strip_backend=strip_backend,
@@ -132,19 +121,15 @@ def process_file(file_content):
 
         update_results()
 
-        document.getElementById("uploadArea").style.display = "none"
-        document.getElementById("processing-options").style.display = "none"
-
-        document.getElementById("results").classList.add("active")
-        document.getElementById("loading").classList.remove("active")
-
         show_alert(f"Successfully processed {len(data)} check-ins!", "success")
 
     except Exception as e:
         app_state.reset()
-        document.getElementById("loading").classList.remove("active")
+        publish({"type": "reset"})
         show_alert(f"Error: {e!s}", "error")
         console.error(f"Processing error: {e!s}")
+    finally:
+        publish({"type": "busy", "value": False})
 
 
 def update_results():
@@ -153,26 +138,7 @@ def update_results():
 
     stats = app_state.parser.get_stats(unique_entries=app_state.processed_venues)
 
-    document.getElementById("totalCheckins").textContent = f"{stats['total_checkins']:,}"
-    document.getElementById("uniqueVenues").textContent = f"{stats['unique_venues']:,}"
-    document.getElementById("duplicates").textContent = f"{stats['duplicates']:,}"
-
-    split_by_visits = document.getElementById("splitByVisits").checked
-    split_buttons = document.getElementById("split-buttons")
-    if split_by_visits:
-        split_buttons.style.display = "contents"
-        distribution = app_state.parser.get_visit_distribution(app_state.cleaned_data)
-        document.getElementById("singleVisit").textContent = f"{len(distribution['1_visit']):,}"
-        document.getElementById("twoToFour").textContent = f"{len(distribution['2-4_visits']):,}"
-        document.getElementById("fivePlus").textContent = f"{len(distribution['5+_visits']):,}"
-        document.getElementById("singleVisit").parentElement.parentElement.style.display = "block"
-        document.getElementById("twoToFour").parentElement.parentElement.style.display = "block"
-        document.getElementById("fivePlus").parentElement.parentElement.style.display = "block"
-    else:
-        split_buttons.style.display = "none"
-        document.getElementById("singleVisit").parentElement.parentElement.style.display = "none"
-        document.getElementById("twoToFour").parentElement.parentElement.style.display = "none"
-        document.getElementById("fivePlus").parentElement.parentElement.style.display = "none"
+    distribution = app_state.parser.get_visit_distribution(app_state.cleaned_data)
 
     def field(venue, key, default=None):
         # Keys vary with the humanKeys/fancyDates checkboxes: humanized name first, then raw.
@@ -182,12 +148,11 @@ def update_results():
                 return value
         return default
 
-    sorted_venues = sorted(
+    top_10 = heapq.nlargest(
+        10,
         app_state.cleaned_data,
-        key=lambda x: field(x, "total_venue_checkins", default=0),
-        reverse=True,
+        key=lambda venue: venue.get("Total Venue Checkins", venue.get("total_venue_checkins", 0)),
     )
-    top_10 = sorted_venues[:10]
 
     preview_html = ""
     for venue in top_10:
@@ -225,28 +190,43 @@ def update_results():
         </div>
         """
 
-    document.getElementById("venuePreview").innerHTML = preview_html
+    publish(
+        {
+            "type": "results",
+            "statistics": {
+                "totalCheckins": f"{stats['total_checkins']:,}",
+                "uniqueVenues": f"{stats['unique_venues']:,}",
+                "duplicates": f"{stats['duplicates']:,}",
+                "singleVisit": f"{len(distribution['1_visit']):,}",
+                "twoToFour": f"{len(distribution['2-4_visits']):,}",
+                "fivePlus": f"{len(distribution['5+_visits']):,}",
+            },
+            "preview": preview_html,
+            "split": app_state.options["splitByVisits"],
+        }
+    )
 
 
 def process_selected_file(file):
     if not file.name.lower().endswith(".json"):
         show_alert("Please upload a JSON file", "error")
+        publish({"type": "busy", "value": False})
         return False
 
     if file.size > 50 * 1024 * 1024:  # 50MB limit
         show_alert("File size exceeds 50MB limit", "error")
+        publish({"type": "busy", "value": False})
         return False
 
-    document.getElementById("loading").classList.add("active")
-    document.getElementById("results").classList.remove("active")
+    publish({"type": "busy", "value": True})
 
     reader = FileReader.new()
 
     def on_load(e):
-        process_file(e.target.result)
+        process_file(e.target.result.to_bytes())
 
     def on_error(e):
-        document.getElementById("loading").classList.remove("active")
+        publish({"type": "busy", "value": False})
         show_alert("Could not read the file. Please try again.", "error")
 
     load_proxy = create_proxy(on_load)
@@ -264,47 +244,27 @@ def process_selected_file(file):
     reader.onerror = error_proxy
     reader.onabort = error_proxy
     reader.onloadend = create_once_callable(on_loadend)
-    reader.readAsText(file)
+    reader.readAsArrayBuffer(file)
     return True
 
 
 def handle_file(event):
-    file_input = document.getElementById("fileInput")
-    files = file_input.files
-    if files.length > 0 and not process_selected_file(files.item(0)):
+    app_state.reset()
+    if not process_selected_file(event.data.file):
         # Clear the rejected file so re-selecting the same one fires change again.
-        file_input.value = ""
-
-
-def dragover(e):
-    e.preventDefault()
-    document.getElementById("uploadArea").classList.add("dragover")
-
-
-def dragleave(e):
-    e.preventDefault()
-    document.getElementById("uploadArea").classList.remove("dragover")
-
-
-def drop(e):
-    e.preventDefault()
-    document.getElementById("uploadArea").classList.remove("dragover")
-
-    files = e.dataTransfer.files
-    if files.length > 0 and process_selected_file(files.item(0)):
-        document.getElementById("fileInput").files = files
+        publish({"type": "reset"})
 
 
 def export_all(event):
     if app_state.has_data():
-        content = json.dumps(app_state.cleaned_data, indent=2)
-        download_file(content, "venues_all.json", "application/json")
+        content = json.dumps(app_state.cleaned_data, indent=2, ensure_ascii=False)
+        download_file(content, "venues.json", "application/json")
 
 
 def export_all_csv(event):
     if app_state.has_data():
         csv_content = data_to_csv(app_state.cleaned_data)
-        download_file(csv_content, "venues_all.csv", "text/csv")
+        download_file(csv_content, "venues.csv", "text/csv")
 
 
 def export_beermap(event):
@@ -319,8 +279,10 @@ def export_beermap(event):
 
 def export_beerstats(event):
     if app_state.has_data():
+        if app_state.dashboard_stats is None:
+            app_state.dashboard_stats = app_state.parser.to_dashboard_stats()
         download_file(
-            render_beerstats(app_state.parser.to_dashboard_stats()),
+            render_beerstats(app_state.dashboard_stats),
             "beerstats.html",
             "text/html",
         )
@@ -329,15 +291,17 @@ def export_beerstats(event):
 def export_everything(event):
     if not app_state.has_data():
         return
-    split_by_visits = document.getElementById("splitByVisits").checked
+    split_by_visits = app_state.options["splitByVisits"]
+    if app_state.dashboard_stats is None:
+        app_state.dashboard_stats = app_state.parser.to_dashboard_stats()
     archive = io.BytesIO()
-    with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
+    with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED, compresslevel=1) as bundle:
         bundle.writestr(
             "beermap.html", render_beermap(app_state.venues_geojson, link_to_stats=True)
         )
         bundle.writestr(
             "beerstats.html",
-            render_beerstats(app_state.parser.to_dashboard_stats(), link_to_map=True),
+            render_beerstats(app_state.dashboard_stats, link_to_map=True),
         )
         bundle.writestr(
             "venues.json", json.dumps(app_state.cleaned_data, indent=2, ensure_ascii=False)
@@ -364,7 +328,7 @@ def export_1_visit(event):
     data = distribution["1_visit"]
     if data:
         csv_content = data_to_csv(data)
-        download_file(csv_content, "venues_1_visit.csv", "text/csv")
+        download_file(csv_content, "venues-1-visit.csv", "text/csv")
         show_alert(f"Exported {len(data)} venues with 1 visit", "success")
     else:
         show_alert("No venues with 1 visit to export", "info")
@@ -377,7 +341,7 @@ def export_2_4_visits(event):
     data = distribution["2-4_visits"]
     if data:
         csv_content = data_to_csv(data)
-        download_file(csv_content, "venues_2-4_visits.csv", "text/csv")
+        download_file(csv_content, "venues-2-4-visits.csv", "text/csv")
         show_alert(f"Exported {len(data)} venues with 2-4 visits", "success")
     else:
         show_alert("No venues with 2-4 visits to export", "info")
@@ -390,7 +354,7 @@ def export_5_plus_visits(event):
     data = distribution["5+_visits"]
     if data:
         csv_content = data_to_csv(data)
-        download_file(csv_content, "venues_5+_visits.csv", "text/csv")
+        download_file(csv_content, "venues-5-plus-visits.csv", "text/csv")
         show_alert(f"Exported {len(data)} venues with 5+ visits", "success")
     else:
         show_alert("No venues with 5+ visits to export", "info")
@@ -403,61 +367,41 @@ def on_split_change(event):
 
 def reset_for_new_file():
     app_state.reset()
-    document.getElementById("uploadArea").style.display = "block"
-    document.getElementById("processing-options").style.display = "block"
-    document.getElementById("results").classList.remove("active")
-    document.getElementById("fileInput").value = ""
-    document.getElementById("alertsStatus").replaceChildren()
-    document.getElementById("alertsError").replaceChildren()
+    if app_state.alert_timer is not None:
+        window.clearTimeout(app_state.alert_timer)
+        app_state.alert_timer = None
+    publish({"type": "reset"})
+
+
+def handle_message(event):
+    command = event.data.command
+    if command == "process":
+        app_state.options = event.data.options.to_py()
+        handle_file(event)
+    elif command == "reset":
+        reset_for_new_file()
+    elif command == "split":
+        app_state.options["splitByVisits"] = event.data.value
+        on_split_change(event)
+    elif command == "export":
+        try:
+            {
+                "json": export_all,
+                "csv": export_all_csv,
+                "map": export_beermap,
+                "stats": export_beerstats,
+                "zip": export_everything,
+                "single": export_1_visit,
+                "few": export_2_4_visits,
+                "many": export_5_plus_visits,
+            }[event.data.artifact](event)
+        except Exception as error:
+            show_alert(f"Export failed: {error}", "error")
+        finally:
+            publish({"type": "busy", "value": False})
 
 
 def init_app():
     """Initialize the web application by setting up all event listeners"""
-    file_input = document.getElementById("fileInput")
-    file_input.addEventListener("change", create_proxy(handle_file))
-
-    upload_area = document.getElementById("uploadArea")
-    upload_area.onclick = lambda e: file_input.click()
-
-    def upload_area_keydown(e):
-        if e.key in ("Enter", " "):
-            e.preventDefault()
-            file_input.click()
-
-    upload_area.addEventListener("keydown", create_proxy(upload_area_keydown))
-
-    upload_area.addEventListener("dragover", create_proxy(dragover))
-    upload_area.addEventListener("dragleave", create_proxy(dragleave))
-    upload_area.addEventListener("drop", create_proxy(drop))
-
-    document.getElementById("exportAllBtn").addEventListener("click", create_proxy(export_all))
-    document.getElementById("exportAllCSVBtn").addEventListener(
-        "click", create_proxy(export_all_csv)
-    )
-    document.getElementById("exportEverythingBtn").addEventListener(
-        "click", create_proxy(export_everything)
-    )
-    document.getElementById("exportBeermapBtn").addEventListener(
-        "click", create_proxy(export_beermap)
-    )
-    document.getElementById("exportBeerstatsBtn").addEventListener(
-        "click", create_proxy(export_beerstats)
-    )
-    document.getElementById("export1Btn").addEventListener("click", create_proxy(export_1_visit))
-    document.getElementById("export24Btn").addEventListener(
-        "click", create_proxy(export_2_4_visits)
-    )
-    document.getElementById("export5Btn").addEventListener(
-        "click", create_proxy(export_5_plus_visits)
-    )
-
-    window.resetForNewFile = create_proxy(reset_for_new_file)
-
-    document.getElementById("splitByVisits").addEventListener(
-        "change", create_proxy(on_split_change)
-    )
-
-    document.getElementById("loading-message").classList.add("hidden")
-    document.getElementById("main-content").classList.remove("hidden")
-
-    console.log("Pyodide initialized - using untappd_parser package!")
+    window.addEventListener("message", create_proxy(handle_message))
+    publish({"type": "ready"})

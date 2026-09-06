@@ -38,3 +38,13 @@ pre-commit = ">=4.4,<5"
 [pypi-dependencies]
 # Only the editable local package; every dev tool above is conda-forge.
 untappd-data-parser = { path = ".", editable = true }
+
+[feature.browser-tests.dependencies]
+playwright-python = ">=1.62,<1.63"
+playwright = ">=1.62,<1.63"
+
+[environments]
+browser-tests = ["browser-tests"]
+
+[feature.browser-tests.tasks]
+test-browser = "pytest -q tests/browser_checks.py"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import io
 import json
 import math
 from collections import Counter
@@ -10,11 +11,33 @@ from pathlib import Path
 from typing import Any, ClassVar, cast
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class VenueLocation:
     name: str
     latitude: float
     longitude: float
+
+    @classmethod
+    def from_entry(cls, entry: dict[str, Any]) -> VenueLocation | None:
+        name = entry.get("venue_name")
+        latitude = entry.get("venue_lat")
+        longitude = entry.get("venue_lng")
+        if (
+            name is None
+            or latitude is None
+            or longitude is None
+            or isinstance(latitude, bool)
+            or isinstance(longitude, bool)
+        ):
+            return None
+        try:
+            latitude = float(latitude)
+            longitude = float(longitude)
+        except (TypeError, ValueError):
+            return None
+        if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+            return None
+        return cls(name, latitude, longitude)
 
 
 class UntappdParser:
@@ -52,54 +75,67 @@ class UntappdParser:
         if key == "venue":
             return self._get_unique_venues()
 
-        return list(
-            {entry[key]: entry for entry in self.data if entry.get(key) is not None}.values()
-        )
+        newest: dict[Any, dict[str, Any]] = {}
+        for entry in self.data:
+            identifier = entry.get(key)
+            if identifier is None:
+                continue
+            previous = newest.get(identifier)
+            if previous is None or (entry.get("created_at") or "") >= (
+                previous.get("created_at") or ""
+            ):
+                newest[identifier] = entry
+        return list(newest.values())
 
     def _get_unique_venues(self) -> list[dict[str, Any]]:
-        venue_info: dict[VenueLocation, dict[str, Any]] = {}
-        venue_beers: dict[VenueLocation, set[str]] = {}
-        venue_breweries: dict[VenueLocation, set[str]] = {}
-        venue_styles: dict[VenueLocation, Counter[str]] = {}
-        venue_abv: dict[VenueLocation, list[float]] = {}
+        venue_info: dict[
+            VenueLocation,
+            tuple[dict[str, Any], set[Any], set[str], Counter[str], list[float]],
+        ] = {}
         # (created_at, beer_name, brewery_name) of the newest check-in per venue.
         venue_last_beer: dict[VenueLocation, tuple[str, str, str | None]] = {}
         for entry in self.data:
-            venue_name = entry.get("venue_name")
-            venue_lat = entry.get("venue_lat")
-            venue_lng = entry.get("venue_lng")
-
-            if venue_name is None or venue_lat is None or venue_lng is None:
+            venue = VenueLocation.from_entry(entry)
+            if venue is None:
                 continue
 
-            venue = VenueLocation(
-                name=venue_name,
-                latitude=venue_lat,
-                longitude=venue_lng,
-            )
-
-            if venue not in venue_info:
-                venue_info[venue] = {
+            aggregates = venue_info.get(venue)
+            if aggregates is None:
+                info = {
                     **entry,
-                    "total_venue_checkins": 1,
-                    "checkin_dates": [entry.get("created_at")] if entry.get("created_at") else [],
-                    "checkin_servings": [entry.get("serving_type") or ""]
-                    if entry.get("created_at")
-                    else [],
+                    "venue_lat": venue.latitude,
+                    "venue_lng": venue.longitude,
+                    "total_venue_checkins": 0,
+                    "checkin_dates": [],
+                    "checkin_servings": [],
+                    "checkin_styles": [],
+                    "checkin_beers": [],
                 }
-                venue_beers[venue] = set()
-                venue_breweries[venue] = set()
-                venue_styles[venue] = Counter()
-                venue_abv[venue] = []
+                venue_beers: set[Any] = set()
+                venue_breweries: set[str] = set()
+                venue_styles: Counter[str] = Counter()
+                venue_abv: list[float] = []
+                venue_info[venue] = (info, venue_beers, venue_breweries, venue_styles, venue_abv)
             else:
-                venue_info[venue]["total_venue_checkins"] += 1
-                if entry.get("created_at"):
-                    venue_info[venue]["checkin_dates"].append(entry["created_at"])
-                    venue_info[venue]["checkin_servings"].append(entry.get("serving_type") or "")
+                info, venue_beers, venue_breweries, venue_styles, venue_abv = aggregates
+
+            abv = self._as_positive_float(entry.get("beer_abv"))
+            info["total_venue_checkins"] += 1
+            info["checkin_dates"].append(entry.get("created_at") or None)
+            info["checkin_servings"].append(entry.get("serving_type") or "")
+            info["checkin_styles"].append(entry.get("beer_type") or "")
+            info["checkin_beers"].append(
+                {
+                    "id": entry.get("bid") or entry.get("beer_name"),
+                    "name": entry.get("beer_name"),
+                    "brewery": entry.get("brewery_name"),
+                    "abv": abv,
+                }
+            )
 
             if entry.get("beer_name"):
                 # bid distinguishes different beers that share a name.
-                venue_beers[venue].add(entry.get("bid") or entry["beer_name"])
+                venue_beers.add(entry.get("bid") or entry["beer_name"])
                 created_at = entry.get("created_at") or ""
                 newest = venue_last_beer.get(venue)
                 if newest is None or (created_at and created_at >= newest[0]):
@@ -109,33 +145,46 @@ class UntappdParser:
                         entry.get("brewery_name"),
                     )
             if entry.get("brewery_name"):
-                venue_breweries[venue].add(entry["brewery_name"])
+                venue_breweries.add(entry["brewery_name"])
             if entry.get("beer_type"):
-                venue_styles[venue][entry["beer_type"]] += 1
-            abv = self._as_positive_float(entry.get("beer_abv"))
+                venue_styles[entry["beer_type"]] += 1
             if abv is not None:
-                venue_abv[venue].append(abv)
+                venue_abv.append(abv)
 
         result = []
-        for venue, info in venue_info.items():
+        for venue, (
+            info,
+            venue_beers,
+            venue_breweries,
+            venue_styles,
+            venue_abv,
+        ) in venue_info.items():
             # checkin_servings is positional against checkin_dates; sort them together.
             ordered = sorted(
-                zip(info["checkin_dates"], info["checkin_servings"], strict=True),
-                key=lambda pair: pair[0],
+                zip(
+                    info["checkin_dates"],
+                    info["checkin_servings"],
+                    info["checkin_styles"],
+                    info["checkin_beers"],
+                    strict=True,
+                ),
+                key=lambda pair: pair[0] or "",
             )
-            dates = [date for date, _ in ordered]
-            info["checkin_dates"] = dates
-            info["checkin_servings"] = [serving for _, serving in ordered]
+            dates = [date for date, _, _, _ in ordered if date]
+            info["checkin_dates"] = [date for date, _, _, _ in ordered]
+            info["checkin_servings"] = [serving for _, serving, _, _ in ordered]
+            info["checkin_styles"] = [style for _, _, style, _ in ordered]
+            info["checkin_beers"] = [beer for _, _, _, beer in ordered]
 
             if dates:
                 info["first_checkin"] = dates[0]
                 info["last_checkin"] = dates[-1] if len(dates) > 1 else None
 
-            info["unique_beers"] = len(venue_beers[venue])
-            info["unique_breweries"] = len(venue_breweries[venue])
-            info["top_styles"] = [style for style, _ in venue_styles[venue].most_common(3)]
-            if venue_abv[venue]:
-                info["average_abv"] = round(sum(venue_abv[venue]) / len(venue_abv[venue]), 1)
+            info["unique_beers"] = len(venue_beers)
+            info["unique_breweries"] = len(venue_breweries)
+            info["top_styles"] = [style for style, _ in venue_styles.most_common(3)]
+            if venue_abv:
+                info["average_abv"] = round(sum(venue_abv) / len(venue_abv), 1)
             if venue in venue_last_beer:
                 _, info["last_beer_name"], info["last_beer_brewery"] = venue_last_beer[venue]
             result.append(info)
@@ -163,10 +212,10 @@ class UntappdParser:
         human_keys: bool = True,
         preserve_keys: set[str] | None = None,
     ) -> list[dict[str, Any]]:
-        result = data.copy()
-
         if strip_backend:
-            result = self._strip_backend_keys(result, preserve_keys)
+            result = self._strip_backend_keys(data, preserve_keys)
+        else:
+            result = [entry.copy() for entry in data]
         if fancy_dates:
             result = self._format_dates(result)
         if human_keys:
@@ -180,17 +229,13 @@ class UntappdParser:
         if not data:
             return data
         keep = self.desired_keys | (preserve_keys or set())
-        all_keys = {key for entry in data for key in entry}
-        backend_keys = all_keys - keep
-        return [{k: v for k, v in entry.items() if k not in backend_keys} for entry in data]
+        return [{k: v for k, v in entry.items() if k in keep} for entry in data]
 
     @staticmethod
     def _format_dates(data: list[dict[str, Any]]) -> list[dict[str, Any]]:
         def format_date_string(date_str: str) -> str | None:
             try:
-                return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").strftime(  # noqa: DTZ007
-                    "%B %d, %Y at %I:%M%p"
-                )
+                return datetime.fromisoformat(date_str).strftime("%B %d, %Y at %I:%M%p")
             except (ValueError, TypeError):
                 return None
 
@@ -198,38 +243,34 @@ class UntappdParser:
             if first_date := entry.get("first_checkin"):
                 formatted_first = format_date_string(first_date)
                 if formatted_first:
-                    entry.pop("first_checkin", None)
-                    entry["First Checkin"] = formatted_first
+                    entry["first_checkin"] = formatted_first
+                    entry.pop("created_at", None)
 
             if last_date := entry.get("last_checkin"):
                 formatted_last = format_date_string(last_date)
                 if formatted_last:
-                    entry.pop("last_checkin", None)
-                    entry["Last Checkin"] = formatted_last
-
-            if "First Checkin" in entry or "Last Checkin" in entry:
-                entry.pop("created_at", None)
+                    entry["last_checkin"] = formatted_last
+                    entry.pop("created_at", None)
 
         return data
 
     @staticmethod
     def _humanize_keys(data: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return [{k.replace("_", " ").title(): v for k, v in entry.items()} for entry in data]
+        names = {
+            key: key.replace("_", " ").title() for key in {key for entry in data for key in entry}
+        }
+        return [{names[k]: v for k, v in entry.items()} for entry in data]
 
-    def to_geojson(self, data: list[dict[str, Any]]) -> dict[str, Any]:
+    def to_geojson(
+        self, data: list[dict[str, Any]], *, exclude_untappd_at_home: bool = False
+    ) -> dict[str, Any]:
         features = []
         for entry in data:
-            latitude = entry.get("venue_lat")
-            longitude = entry.get("venue_lng")
-            if latitude is None or longitude is None:
+            if exclude_untappd_at_home and entry.get("venue_name") == "Untappd at Home":
                 continue
             # NaN would serialize as a bare token JSON.parse rejects; coerce and skip.
-            try:
-                latitude = float(latitude)
-                longitude = float(longitude)
-            except (TypeError, ValueError):
-                continue
-            if not (math.isfinite(latitude) and math.isfinite(longitude)):
+            venue = VenueLocation.from_entry(entry)
+            if venue is None:
                 continue
             properties = {
                 key: entry[key]
@@ -249,6 +290,8 @@ class UntappdParser:
                     "last_checkin",
                     "checkin_dates",
                     "checkin_servings",
+                    "checkin_styles",
+                    "checkin_beers",
                 )
                 if entry.get(key) is not None
             }
@@ -258,16 +301,23 @@ class UntappdParser:
                     properties[key] = str(properties[key])[:10]
             if "checkin_dates" in properties:
                 properties["checkin_dates"] = [
-                    str(date)[:10] for date in properties["checkin_dates"]
+                    str(date)[:10] if date else None for date in properties["checkin_dates"]
                 ]
             features.append(
                 {
                     "type": "Feature",
-                    "geometry": {"type": "Point", "coordinates": [longitude, latitude]},
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [venue.longitude, venue.latitude],
+                    },
                     "properties": properties,
                 }
             )
-        return {"type": "FeatureCollection", "features": features}
+        return {
+            "type": "FeatureCollection",
+            "features": features,
+            "total_checkins": len(self.data),
+        }
 
     def to_dashboard_stats(self) -> dict[str, Any]:
         checkins_per_day: Counter[str] = Counter()
@@ -285,16 +335,21 @@ class UntappdParser:
         flavor_counts: Counter[str] = Counter()
         flavor_tagged_checkins = 0
         unique_beers: set[Any] = set()
+        unique_venues: set[VenueLocation] = set()
 
         for entry in self.data:
+            venue = VenueLocation.from_entry(entry)
+            if venue is not None:
+                unique_venues.add(venue)
+
             created_at = entry.get("created_at")
             if created_at:
                 try:
-                    moment = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S")  # noqa: DTZ007
+                    moment = datetime.fromisoformat(created_at)
                 except (TypeError, ValueError):
                     moment = None
                 if moment is not None:
-                    checkins_per_day[moment.strftime("%Y-%m-%d")] += 1
+                    checkins_per_day[moment.date().isoformat()] += 1
                     weekday_hour[moment.weekday()][moment.hour] += 1
 
             abv = self._as_positive_float(entry.get("beer_abv"))
@@ -341,7 +396,7 @@ class UntappdParser:
                 "checkins": len(self.data),
                 "unique_beers": len(unique_beers),
                 "unique_breweries": len(brewery_checkins),
-                "unique_venues": len(self._get_unique_venues()),
+                "unique_venues": len(unique_venues),
                 "first_day": days[0] if days else None,
                 "last_day": days[-1] if days else None,
                 "average_abv": mean(abv_values, 1),
@@ -427,6 +482,12 @@ class UntappdParser:
         return [(f"{base}.csv", len(data))]
 
     def _save_csv(self, data: list[dict[str, Any]], path: Path) -> None:
+        path.write_text(self.to_csv(data), encoding="utf-8", newline="")
+
+    @staticmethod
+    def to_csv(data: list[dict[str, Any]]) -> str:
+        if not data:
+            return ""
         # Rows can have heterogeneous key sets; union them so DictWriter never raises.
         fieldnames = list(dict.fromkeys(key for entry in data for key in entry))
         # List values (checkin_dates, top_styles) would render as Python reprs.
@@ -437,10 +498,11 @@ class UntappdParser:
             }
             for entry in data
         ]
-        with path.open("w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(rows)
+        output = io.StringIO(newline="")
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+        return output.getvalue()
 
     def get_stats(
         self, key: str = "venue", unique_entries: list[dict[str, Any]] | None = None

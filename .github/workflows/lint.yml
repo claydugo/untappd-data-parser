@@ -35,3 +35,9 @@ jobs:
 
       - name: Tests
         run: pixi run test
+
+      - name: Install Chromium
+        run: pixi run -e browser-tests python -m playwright install --with-deps chromium
+
+      - name: Browser tests
+        run: pixi run -e browser-tests test-browser

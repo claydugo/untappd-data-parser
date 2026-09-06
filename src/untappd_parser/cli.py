@@ -2,7 +2,10 @@ import argparse
 import json
 import sys
 import webbrowser
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
 
 from .pages import BEERMAP_FILENAME, BEERSTATS_FILENAME, render_beermap, render_beerstats
 from .parser import UntappdParser
@@ -84,9 +87,14 @@ def main() -> None:
         help="Split venue CSV exports by visit count distribution (1, 2-4, 5+)",
     )
     parser.add_argument(
+        "--exclude-untappd-at-home",
+        action="store_true",
+        help="Exclude the Untappd at Home venue from the map; keep other exports and statistics",
+    )
+    parser.add_argument(
         "--open",
         action="store_true",
-        help="Open the map (or the stats page) in a browser when writing finishes",
+        help="Serve the exports locally and open the map or stats page; Ctrl+C stops the server",
     )
 
     args = parser.parse_args()
@@ -137,20 +145,32 @@ def main() -> None:
         sys.exit(1)
 
     try:
+        base = _base_for(args.key)
+        candidates = _stale_candidates(base, wanted)
+        source = Path(args.file).resolve()
+        for name in candidates:
+            destination = out_dir / name
+            if destination.resolve() == source or (
+                destination.exists() and destination.samefile(source)
+            ):
+                raise ValueError(f"Output would replace the input file: {destination}")
+
         untappd = UntappdParser(filename=args.file)
-        unique_entries = untappd.get_unique_entries(args.key)
+        unique_entries = (
+            untappd.get_unique_entries(args.key) if wanted & {"map", "csv", "json"} else []
+        )
 
         out_dir.mkdir(parents=True, exist_ok=True)
-        base = _base_for(args.key)
         written: list[tuple[str, str]] = []
 
         # clean_data mutates entries in place; render the pages from the raw entries first.
         if "map" in wanted:
-            page = render_beermap(
-                untappd.to_geojson(unique_entries), link_to_stats="stats" in wanted
+            geojson = untappd.to_geojson(
+                unique_entries, exclude_untappd_at_home=args.exclude_untappd_at_home
             )
+            page = render_beermap(geojson, link_to_stats="stats" in wanted)
             (out_dir / BEERMAP_FILENAME).write_text(page, encoding="utf-8")
-            written.append((BEERMAP_FILENAME, _count(len(unique_entries), "venue", "venues")))
+            written.append((BEERMAP_FILENAME, _count(len(geojson["features"]), "venue", "venues")))
 
         if "stats" in wanted:
             stats = untappd.to_dashboard_stats()
@@ -165,13 +185,14 @@ def main() -> None:
                 )
             )
 
-        cleaned_data = untappd.clean_data(
-            unique_entries,
-            strip_backend=args.strip_backend,
-            fancy_dates=args.fancy_dates,
-            human_keys=args.human_keys,
-            preserve_keys={args.key},
-        )
+        if wanted & {"csv", "json"}:
+            cleaned_data = untappd.clean_data(
+                unique_entries,
+                strip_backend=args.strip_backend,
+                fancy_dates=args.fancy_dates,
+                human_keys=args.human_keys,
+                preserve_keys={args.key},
+            )
 
         if "json" in wanted:
             path = out_dir / f"{base}.json"
@@ -186,13 +207,8 @@ def main() -> None:
                 for name, rows in untappd.save_csvs(cleaned_data, out_dir, base, split_by_visits)
             )
 
-        if not written:
-            print("The export held no entries, so no files were written", file=sys.stderr)
-            return
-
         # A previous run with other flags can leave files this run did not refresh.
         fresh = {name for name, _ in written}
-        candidates = _stale_candidates(base, wanted)
         stale = sorted(
             path
             for path in out_dir.iterdir()
@@ -200,6 +216,12 @@ def main() -> None:
         )
         for path in stale:
             path.unlink()
+
+        if not written:
+            print("The export held no entries, so no files were written", file=sys.stderr)
+            if stale:
+                print(f"Removed {len(stale)} stale: {', '.join(path.name for path in stale)}")
+            return
 
         width = max(len(name) for name, _ in written)
         print(f"Wrote {out_dir}/")
@@ -209,12 +231,30 @@ def main() -> None:
             print(f"Removed {len(stale)} stale: {', '.join(path.name for path in stale)}")
 
         if args.open:
-            opened = BEERMAP_FILENAME if "map" in wanted else BEERSTATS_FILENAME
-            target = out_dir / opened
-            if target.exists():
-                webbrowser.open(target.resolve().as_uri())
-            else:
+            opened = next(
+                (name for name, _ in written if name in (BEERMAP_FILENAME, BEERSTATS_FILENAME)),
+                None,
+            )
+            if opened is None:
                 print("Nothing to open: no page was written", file=sys.stderr)
+                return
+            with ThreadingHTTPServer(
+                ("127.0.0.1", 0),
+                partial(SimpleHTTPRequestHandler, directory=str(out_dir.resolve())),
+            ) as server:
+                thread = Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                address = f"http://127.0.0.1:{server.server_port}/{opened}"
+                print(f"Serving {address}\nPress Ctrl+C to stop.", flush=True)
+                try:
+                    if not webbrowser.open(address):
+                        print("Open the address above in your browser.", file=sys.stderr)
+                    thread.join()
+                except KeyboardInterrupt:
+                    print("\nServer stopped.")
+                finally:
+                    server.shutdown()
+                    thread.join()
 
     except (ValueError, KeyError, json.JSONDecodeError) as e:
         print(f"Error processing file: {e}", file=sys.stderr)

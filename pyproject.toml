@@ -34,7 +34,7 @@ untappd-parser = "untappd_parser.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-untappd_parser = ["py.typed", "templates/*.html"]
+untappd_parser = ["py.typed", "templates/*.html", "*.mjs"]
 
 [tool.ruff]
 line-length = 100

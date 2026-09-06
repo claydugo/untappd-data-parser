@@ -42,17 +42,28 @@
 		>
 		<style>
 			:root {
-				--panel-bg: rgba(255, 255, 255, 0.92);
+				--panel-bg: rgba(255, 255, 255, 0.97);
 				--panel-text: #333;
 				--panel-muted: #666;
-				--accent: #EA580C;
+				--panel-border: rgba(0, 0, 0, 0.12);
+				--control-bg: rgba(0, 0, 0, 0.045);
+				--selected-bg: #fff;
+				--accent-text: #fff;
+				--accent: #C2410C;
 			}
 			@media (prefers-color-scheme: dark) {
 				:root {
-					--panel-bg: rgba(28, 28, 28, 0.92);
+					--panel-bg: rgba(28, 28, 28, 0.97);
 					--panel-text: #eee;
 					--panel-muted: #aaa;
+					--panel-border: rgba(255, 255, 255, 0.12);
+					--control-bg: rgba(255, 255, 255, 0.055);
+					--selected-bg: #484848;
+					--accent-text: #241a08;
 					--accent: #F59E0B;
+				}
+				.style-control .style-options {
+					background: #1c1c1c;
 				}
 				.maplibregl-popup-content {
 					background: #262626;
@@ -92,14 +103,17 @@
 			}
 			.panel {
 				background: var(--panel-bg);
-				border-radius: 6px;
-				box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+				border: 1px solid var(--panel-border);
+				border-radius: 12px;
+				box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
 				font-family: system-ui, -apple-system, sans-serif;
 				font-size: 13px;
 				color: var(--panel-text);
 			}
 			.sibling {
-				padding: 6px 10px;
+				background: transparent;
+				border: none;
+				box-shadow: none;
 			}
 			.sibling a {
 				color: var(--accent);
@@ -110,46 +124,184 @@
 				text-decoration: underline;
 			}
 			.top-left {
+				display: flex;
+				flex-direction: column;
+				gap: 12px;
+				box-sizing: border-box;
+				padding: 16px;
+			}
+			.map-sidebar {
 				position: absolute;
 				top: 12px;
 				left: 12px;
 				z-index: 1;
-				display: flex;
-				flex-direction: column;
-				align-items: flex-start;
-				gap: 8px;
+				width: 320px;
+				max-height: calc(100dvh - var(--map-footer-height, 24px) - var(--time-control-height, 134px) - 36px);
+				overflow-y: auto;
+				overscroll-behavior: contain;
+				border-radius: 12px;
 			}
 			.stats {
-				padding: 8px 12px;
+				font-variant-numeric: tabular-nums;
+			}
+			.results-heading,
+			.filter-actions,
+			.sheet-header {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: 8px;
+			}
+			#checkin-count {
+				font-size: 18px;
+				font-weight: 600;
+				letter-spacing: -0.3px;
+			}
+			#location-counts {
+				margin-top: 4px;
+				font-size: 12px;
+				line-height: 1.6;
+				color: var(--panel-muted);
+			}
+			#display-summary {
+				display: none;
+				margin-top: 4px;
+				font-size: 12px;
+				color: var(--panel-muted);
+			}
+			#display-controls,
+			#filter-fields {
+				display: grid;
+				gap: 12px;
+			}
+			#desktop-filters:has(> [hidden]) {
+				display: none;
+			}
+			.control-group {
+				display: grid;
+				align-items: center;
+				gap: 6px;
+			}
+			.control-label {
+				font-size: 13px;
+				color: var(--panel-muted);
 			}
 			.view-toggle {
 				display: flex;
-				gap: 4px;
-				padding: 4px;
+				gap: 2px;
+				padding: 3px;
+				border-radius: 8px;
+				background: var(--control-bg);
 			}
 			.view-toggle button {
+				flex: 1;
+				min-width: 0;
 				border: none;
 				background: transparent;
 				color: var(--panel-text);
 				font: inherit;
-				padding: 4px 10px;
-				border-radius: 4px;
+				padding: 8px 2px;
+				border-radius: 8px;
 				cursor: pointer;
+			}
+			.view-toggle button:hover:not(.active) {
+				background: var(--control-bg);
 			}
 			.view-toggle button.active {
 				background: var(--accent);
-				color: #fff;
+				color: var(--accent-text);
+			}
+			#view-toggle button.active,
+			#serving-all.active {
+				background: var(--selected-bg);
+				color: var(--panel-text);
+				box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+			}
+			.style-control input {
+				box-sizing: border-box;
+				min-width: 0;
+				width: 100%;
+				background: var(--control-bg);
+				color: var(--panel-text);
+				font: inherit;
+				border: 1px solid var(--panel-border);
+				border-radius: 8px;
+				padding: 10px 32px 10px 12px;
+				color-scheme: light dark;
+			}
+			.style-control input::placeholder {
+				color: var(--panel-muted);
+				opacity: 1;
+			}
+			.style-chevron {
+				position: absolute;
+				top: 14px;
+				right: 14px;
+				width: 7px;
+				height: 7px;
+				border-right: 1.5px solid currentColor;
+				border-bottom: 1.5px solid currentColor;
+				transform: rotate(45deg);
+				pointer-events: none;
+			}
+			.style-picker {
+				position: relative;
+				min-width: 0;
+			}
+			.style-options {
+				position: relative;
+				max-height: min(240px, 35vh);
+				overflow-y: auto;
+				margin: 4px 0 0;
+				padding: 4px;
+				list-style: none;
+				border: 1px solid var(--panel-border);
+				border-radius: 8px;
+				background: #fff;
+				box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+			}
+			.style-options li {
+				padding: 8px;
+				border-radius: 4px;
+				cursor: pointer;
+			}
+			.style-options li[aria-selected="true"] {
+				background: var(--control-bg);
+				outline: 1px solid var(--accent);
+			}
+			.coverage {
+				font-size: 11px;
+				line-height: 1.5;
+				color: var(--panel-muted);
+			}
+			#reset-filters {
+				border: none;
+				background: transparent;
+				color: var(--panel-muted);
+				font: inherit;
+				font-size: 12px;
+				padding: 4px;
+				cursor: pointer;
+			}
+			.panel :is(button, input, a):focus-visible {
+				outline: 2px solid var(--accent);
+				outline-offset: 2px;
 			}
 			.legend {
-				position: absolute;
-				bottom: 24px;
-				left: 12px;
-				z-index: 1;
-				padding: 8px 12px;
+				display: flex;
+				flex-wrap: wrap;
+				align-items: center;
+				gap: 8px 14px;
+				font-size: 12px;
 			}
-			.legend-title {
-				font-weight: 600;
-				margin-bottom: 4px;
+			.visually-hidden {
+				position: absolute;
+				width: 1px;
+				height: 1px;
+				padding: 0;
+				overflow: hidden;
+				clip-path: inset(50%);
+				white-space: nowrap;
 			}
 			.legend-row {
 				display: flex;
@@ -158,35 +310,335 @@
 				line-height: 1.6;
 			}
 			.legend-dot {
+				flex-shrink: 0;
 				border-radius: 50%;
 				border: 1.5px solid #fff;
 				box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
 			}
+			#legend-info {
+				margin-left: auto;
+				width: 28px;
+				height: 28px;
+				padding: 0;
+				border: 1px solid var(--panel-border);
+				border-radius: 50%;
+				background: transparent;
+				color: var(--panel-muted);
+				cursor: pointer;
+				font: inherit;
+			}
+			#legend-clusters {
+				flex-basis: 100%;
+			}
+			.filter-actions {
+				border-top: 1px solid var(--panel-border);
+				padding-top: 10px;
+			}
+			#filters-button,
+			#close-filters {
+				border: none;
+				border-radius: 8px;
+				padding: 8px 10px;
+				background: var(--control-bg);
+				color: var(--panel-text);
+				font: inherit;
+				font-weight: 500;
+				cursor: pointer;
+			}
+			#filters-button::after {
+				content: "⌄";
+				margin-left: 8px;
+			}
+			#filters-button[aria-expanded="true"]::after {
+				content: "⌃";
+			}
+			#filter-chips {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 6px;
+			}
+			#filter-chips button {
+				max-width: 100%;
+				border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+				border-radius: 8px;
+				background: color-mix(in srgb, var(--accent) 10%, transparent);
+				color: var(--panel-text);
+				padding: 6px 8px;
+				font: inherit;
+				font-size: 12px;
+				cursor: pointer;
+				text-align: left;
+				overflow-wrap: anywhere;
+			}
+			#filter-chips button::after {
+				content: "×";
+				margin-left: 8px;
+				color: var(--accent);
+			}
+			#filter-sheet {
+				box-sizing: border-box;
+				width: 100%;
+				max-width: none;
+				max-height: 60dvh;
+				margin: auto 0 0;
+				padding: 0;
+				border-radius: 16px 16px 0 0;
+				overscroll-behavior: contain;
+			}
+			#filter-sheet::backdrop {
+				background: rgba(0, 0, 0, 0.45);
+			}
+			.sheet-header {
+				position: sticky;
+				top: 0;
+				z-index: 4;
+				padding: 12px 16px;
+				background: var(--panel-bg);
+				border-bottom: 1px solid var(--panel-border);
+			}
+			.sheet-header h2 {
+				margin: 0;
+				font-size: 16px;
+			}
+			#sheet-controls {
+				display: grid;
+				gap: 16px;
+				padding: 16px 16px max(16px, env(safe-area-inset-bottom));
+			}
+			#sheet-controls #filter-fields {
+				border-top: 1px solid var(--panel-border);
+				padding-top: 16px;
+			}
 			.time-control {
 				position: absolute;
-				bottom: 24px;
+				bottom: max(calc(var(--map-footer-height, 24px) + 12px), env(safe-area-inset-bottom));
 				left: 50%;
 				transform: translateX(-50%);
 				z-index: 1;
-				display: flex;
+				display: grid;
+				grid-template-columns: 32px minmax(0, 1fr);
+				box-sizing: border-box;
+				width: min(480px, calc(100vw - 24px));
 				align-items: center;
-				gap: 8px;
-				padding: 8px 12px;
+				column-gap: 12px;
+				row-gap: 4px;
+				padding: 12px 16px;
 			}
 			.time-control button {
 				border: none;
 				background: transparent;
 				color: var(--panel-text);
-				font-size: 14px;
-				padding: 2px 4px;
+				font: inherit;
+				padding: 4px 0;
 				cursor: pointer;
 			}
-			.time-control input[type="range"] {
-				width: min(40vw, 240px);
-				accent-color: var(--accent);
+			.time-header {
+				grid-column: 1 / -1;
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: 8px;
 			}
 			.time-control .time-label {
-				min-width: 132px;
+				font-weight: 600;
+				text-align: left;
+			}
+			#dates-button {
+				display: none;
+			}
+			#reset-dates {
+				flex-shrink: 0;
+			}
+			#reset-dates {
+				font-size: 12px;
+				color: var(--panel-muted);
+			}
+			#reset-dates:hover {
+				color: var(--panel-text);
+			}
+			#play-button {
+				width: 32px;
+				height: 32px;
+				border-radius: 50%;
+				background: var(--control-bg);
+			}
+			.time-range {
+				position: relative;
+				height: 36px;
+				touch-action: none;
+				cursor: pointer;
+			}
+			.range-track {
+				position: absolute;
+				top: 16px;
+				left: 12px;
+				right: 12px;
+				height: 4px;
+				border-radius: 2px;
+				background: var(--panel-border);
+				pointer-events: none;
+			}
+			.range-selection {
+				position: absolute;
+				left: var(--range-start, 0%);
+				right: calc(100% - var(--range-end, 100%));
+				height: 100%;
+				border-radius: 2px;
+				background: var(--accent);
+			}
+			#playhead {
+				position: absolute;
+				left: var(--playhead);
+				top: -4px;
+				width: 2px;
+				height: 12px;
+				background: var(--panel-text);
+			}
+			.time-range input {
+				position: absolute;
+				inset: 0;
+				width: 100%;
+				height: 36px;
+				margin: 0;
+				appearance: none;
+				background: transparent;
+				outline: none;
+				pointer-events: none;
+			}
+			.time-range input:focus-visible {
+				z-index: 1;
+			}
+			.time-range input::-webkit-slider-thumb {
+				appearance: none;
+				box-sizing: border-box;
+				width: 24px;
+				height: 24px;
+				border: 3px solid var(--panel-bg);
+				border-radius: 50%;
+				background: var(--accent);
+				box-shadow: 0 0 0 1px var(--accent);
+			}
+			.time-range input::-moz-range-thumb {
+				box-sizing: border-box;
+				width: 24px;
+				height: 24px;
+				border: 3px solid var(--panel-bg);
+				border-radius: 50%;
+				background: var(--accent);
+				box-shadow: 0 0 0 1px var(--accent);
+			}
+			.time-range input:focus-visible::-webkit-slider-thumb {
+				box-shadow: 0 0 0 3px var(--panel-bg), 0 0 0 5px var(--accent);
+			}
+			.time-range input:focus-visible::-moz-range-thumb {
+				box-shadow: 0 0 0 3px var(--panel-bg), 0 0 0 5px var(--accent);
+			}
+			.time-dates {
+				grid-column: 2;
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+				gap: 16px;
+			}
+			.time-dates label {
+				display: grid;
+				gap: 2px;
+				font-size: 11px;
+				color: var(--panel-muted);
+			}
+			.time-dates input {
+				box-sizing: border-box;
+				width: 100%;
+				min-width: 0;
+				border: 1px solid transparent;
+				border-radius: 8px;
+				background: transparent;
+				color: var(--panel-text);
+				font: inherit;
+				font-size: 12px;
+				padding: 4px;
+				color-scheme: light dark;
+			}
+			.time-dates input:hover {
+				border-color: var(--panel-border);
+				background: var(--control-bg);
+			}
+			@media (max-width: 600px) {
+				.map-sidebar {
+					width: calc(100vw - 72px);
+				}
+				.top-left {
+					gap: 8px;
+					padding: 12px;
+				}
+				#desktop-controls,
+				#desktop-filters {
+					display: none;
+				}
+				#checkin-count {
+					font-size: 16px;
+				}
+				#location-counts {
+					font-size: 11px;
+				}
+				#display-summary:not(:empty) {
+					display: block;
+				}
+				.filter-actions {
+					border: none;
+					padding-top: 0;
+				}
+				#filters-button {
+					padding: 8px;
+				}
+				.time-control {
+					padding: 8px 12px;
+					grid-template-columns: 44px minmax(0, 1fr);
+					column-gap: 8px;
+				}
+				#time-label {
+					display: none;
+				}
+				#dates-button {
+					display: block;
+				}
+				#dates-button::after {
+					content: "⌄";
+					margin-left: 8px;
+				}
+				#dates-button[aria-expanded="true"]::after {
+					content: "⌃";
+				}
+				.time-dates {
+					grid-column: 1 / -1;
+					gap: 8px;
+				}
+			}
+			@media (pointer: coarse) {
+				.panel button,
+				.panel input,
+				.style-options li,
+				.sibling a {
+					min-height: 44px;
+					box-sizing: border-box;
+				}
+				.sibling a {
+					display: inline-flex;
+					align-items: center;
+				}
+				#legend-info,
+				#play-button {
+					width: 44px;
+				}
+				.style-chevron {
+					top: 17px;
+				}
+				.time-range,
+				.time-range input {
+					height: 44px;
+				}
+				.range-track {
+					top: 20px;
+				}
 			}
 			.map-error {
 				position: absolute;
@@ -223,45 +675,108 @@
 	</head>
 	<body>
 		<div id="map"></div>
-		<div class="top-left">
-			<div class="panel stats" id="stats" hidden></div>
-			<!--__UNTAPPD_SIBLING_LINK__-->
-			<div class="panel view-toggle" id="view-toggle" hidden>
-				<button id="bubbles-button" class="active" type="button">Bubbles</button>
-				<button id="heatmap-button" type="button">Heatmap</button>
+		<div class="map-sidebar">
+		<div class="panel top-left" id="map-controls" hidden>
+			<div class="stats" id="stats" hidden>
+				<div class="results-heading">
+					<strong id="checkin-count"></strong>
+					<!--__UNTAPPD_SIBLING_LINK__-->
+				</div>
+				<div id="location-counts"></div>
+				<div id="display-summary"></div>
 			</div>
-			<div class="panel view-toggle" id="metric-toggle" hidden>
-				<button id="metric-checkins" class="active" type="button">Check-ins</button>
-				<button id="metric-beers" type="button">Beers</button>
-				<button id="metric-abv" type="button">ABV</button>
+			<div id="desktop-controls">
+			<div id="display-controls">
+			<div class="control-group" id="view-toggle" hidden>
+				<div class="view-toggle" role="group" aria-label="Map view">
+					<button id="bubbles-button" class="active" type="button">Bubbles</button>
+					<button id="heatmap-button" type="button">Heatmap</button>
+				</div>
 			</div>
-			<div class="panel view-toggle" id="serving-toggle" hidden>
-				<button id="serving-all" class="active" type="button">All</button>
-				<button id="serving-draft" type="button">Draft</button>
-				<button id="serving-bottle" type="button">Bottle</button>
-				<button id="serving-can" type="button">Can</button>
-				<button id="serving-cask" type="button">Cask</button>
+			<div class="control-group" id="metric-toggle" hidden>
+				<div class="view-toggle" role="group" aria-label="Bubble metric">
+					<button id="metric-checkins" class="active" type="button">Check-ins</button>
+					<button id="metric-abv" type="button">Avg ABV</button>
+				</div>
+			</div>
+			<div class="legend" id="legend" role="group" aria-labelledby="legend-title" hidden>
+				<span class="visually-hidden" id="legend-title">Check-ins</span>
+				<div class="legend-row">
+					<span class="legend-dot" id="legend-dot-1" style="width: 16px; height: 16px; background: #F59E0B;"></span>
+					<span id="legend-label-1">1</span>
+				</div>
+				<div class="legend-row">
+					<span class="legend-dot" id="legend-dot-2" style="width: 20px; height: 20px; background: #EA580C;"></span>
+					<span id="legend-label-2">2&ndash;4</span>
+				</div>
+				<div class="legend-row">
+					<span class="legend-dot" id="legend-dot-3" style="width: 25px; height: 25px; background: #9A3412;"></span>
+					<span id="legend-label-3">5+</span>
+				</div>
+				<button id="legend-info" type="button" aria-label="About map bubbles" aria-expanded="false" aria-controls="legend-clusters">i</button>
+				<div class="legend-row" id="legend-unknown" hidden>
+					<span class="legend-dot" style="width: 16px; height: 16px; background: #64748b;"></span>
+					<span>ABV unavailable</span>
+				</div>
+				<div class="coverage" id="legend-clusters" hidden>Cluster labels show check-ins</div>
+			</div>
+			</div>
+			</div>
+			<div class="filter-actions">
+				<button id="filters-button" type="button" aria-expanded="false" aria-controls="filter-fields">Filters</button>
+				<button id="reset-filters" type="button" hidden>Clear filters</button>
+			</div>
+			<div id="filter-chips" role="group" aria-label="Active filters" hidden></div>
+			<div id="desktop-filters">
+			<div id="filter-fields" hidden>
+			<div class="control-group" id="serving-toggle" hidden>
+				<span class="control-label">Serving</span>
+				<div class="view-toggle" role="group" aria-label="Serving type">
+					<button id="serving-all" class="active" type="button">All</button>
+					<button id="serving-draft" type="button">Draft</button>
+					<button id="serving-bottle" type="button">Bottle</button>
+					<button id="serving-can" type="button">Can</button>
+					<button id="serving-cask" type="button">Cask</button>
+				</div>
+			</div>
+			<div class="control-group style-control" id="style-control" hidden>
+				<label class="control-label" for="style-filter">Style</label>
+				<div class="style-picker">
+					<input id="style-filter" type="text" role="combobox" aria-autocomplete="list"
+						aria-expanded="false" aria-controls="style-options" autocomplete="off"
+						value="All styles" placeholder="Search styles">
+					<span class="style-chevron" aria-hidden="true"></span>
+					<ul class="style-options" id="style-options" role="listbox" aria-label="Style groups" hidden></ul>
+					<div id="style-empty" class="style-options" role="status" hidden>No matching styles</div>
+				</div>
+			</div>
+			</div>
 			</div>
 		</div>
-		<div class="panel legend" id="legend" hidden>
-			<div class="legend-title" id="legend-title">Check-ins</div>
-			<div class="legend-row">
-				<span class="legend-dot" id="legend-dot-1" style="width: 16px; height: 16px; background: #F59E0B;"></span>
-				<span id="legend-label-1">1 check-in</span>
-			</div>
-			<div class="legend-row">
-				<span class="legend-dot" id="legend-dot-2" style="width: 20px; height: 20px; background: #EA580C;"></span>
-				<span id="legend-label-2">2&ndash;4 check-ins</span>
-			</div>
-			<div class="legend-row">
-				<span class="legend-dot" id="legend-dot-3" style="width: 25px; height: 25px; background: #9A3412;"></span>
-				<span id="legend-label-3">5+ check-ins</span>
-			</div>
 		</div>
+		<dialog class="panel" id="filter-sheet" aria-labelledby="filter-sheet-title">
+			<div class="sheet-header">
+				<h2 id="filter-sheet-title">Filters and view</h2>
+				<button id="close-filters" type="button" autofocus>Done</button>
+			</div>
+			<div id="sheet-controls"></div>
+		</dialog>
 		<div class="panel time-control" id="time-control" hidden>
+			<div class="time-header">
+				<span class="time-label" id="time-label">All check-ins</span>
+				<button class="time-label" id="dates-button" type="button" aria-expanded="false" aria-controls="time-dates">All dates</button>
+				<button id="reset-dates" type="button" hidden>All dates</button>
+			</div>
 			<button id="play-button" type="button" aria-label="Play">&#9654;</button>
-			<input id="time-slider" type="range" min="0" max="0" value="0" aria-label="Check-in date cutoff">
-			<span class="time-label" id="time-label">All check-ins</span>
+			<div class="time-range" id="time-range" role="group" aria-label="Check-in date range">
+				<div class="range-track"><div class="range-selection"></div><div id="playhead" hidden></div></div>
+				<input id="time-start-slider" type="range" min="0" max="0" value="0" aria-label="Start date">
+				<input id="time-slider" type="range" min="0" max="0" value="0" aria-label="End date">
+			</div>
+			<div class="time-dates" id="time-dates">
+				<label>From <input id="date-start" type="date"></label>
+				<label>Through <input id="date-end" type="date"></label>
+			</div>
 		</div>
 		<script type="application/json" id="venue-data">"__UNTAPPD_VENUE_DATA__"</script>
 		<script type="module">
@@ -296,6 +811,7 @@
 				center: [-95, 38],
 				zoom: 3,
 				hash: true,
+				attributionControl: { compact: true },
 			});
 			map.addControl(new maplibregl.NavigationControl(), "top-right");
 			map.addControl(new maplibregl.FullscreenControl(), "top-right");
@@ -309,10 +825,13 @@
 			const metricToggleElement = document.getElementById("metric-toggle");
 			const metricButtons = {
 				checkins: document.getElementById("metric-checkins"),
-				beers: document.getElementById("metric-beers"),
 				abv: document.getElementById("metric-abv"),
 			};
 			const servingToggleElement = document.getElementById("serving-toggle");
+			const styleFilter = document.getElementById("style-filter");
+			const styleOptions = document.getElementById("style-options");
+			const styleEmpty = document.getElementById("style-empty");
+			const styleGroups = new Set();
 			const servingButtons = {
 				all: document.getElementById("serving-all"),
 				draft: document.getElementById("serving-draft"),
@@ -324,59 +843,228 @@
 			const timeControlElement = document.getElementById("time-control");
 			const playButton = document.getElementById("play-button");
 			const timeSlider = document.getElementById("time-slider");
+			const timeStartSlider = document.getElementById("time-start-slider");
+			const timeRange = document.getElementById("time-range");
 			const timeLabel = document.getElementById("time-label");
+			const dateStart = document.getElementById("date-start");
+			const dateEnd = document.getElementById("date-end");
+			const mobileLayout = matchMedia("(max-width: 600px)");
+			const filtersButton = document.getElementById("filters-button");
+			const filterFields = document.getElementById("filter-fields");
+			const filterSheet = document.getElementById("filter-sheet");
+			const filterChips = document.getElementById("filter-chips");
+			const resetFilters = document.getElementById("reset-filters");
+			const datesButton = document.getElementById("dates-button");
+			const timeDates = document.getElementById("time-dates");
+			new ResizeObserver((entries) => {
+				document.documentElement.style.setProperty("--map-footer-height", `${entries[0].borderBoxSize[0].blockSize}px`);
+			}).observe(map.getContainer().querySelector(".maplibregl-ctrl-bottom-right"));
+			new ResizeObserver((entries) => {
+				document.documentElement.style.setProperty("--time-control-height", `${entries[0].borderBoxSize[0].blockSize}px`);
+			}).observe(timeControlElement);
+			const initialParameters = new URLSearchParams(location.search);
 
 			let canonicalFeatures = [];
 			let filteredCollection = null;
 			const propertiesById = new Map();
-			let viewMode = "bubbles";
+			const openPopups = new Map();
+			let viewMode = initialParameters.get("view") === "heatmap" ? "heatmap" : "bubbles";
 			// "all" keeps every check-in; any other value matches checkin_servings.
-			let activeServing = "all";
+			let activeServing = Object.hasOwn(servingButtons, initialParameters.get("serving"))
+				? initialParameters.get("serving") : "all";
+			let activeStyle = "";
 			let timeline = null;
 			let playTimer = null;
+			let playbackDay = null;
+			let urlTimer = null;
+			let filterFrame = null;
+			const sourceCollections = new Map();
 
 			const metrics = {
 				checkins: {
 					key: "total_venue_checkins",
 					thresholds: [2, 5],
 					legendTitle: "Check-ins",
-					legendRows: ["1 check-in", "2–4 check-ins", "5+ check-ins"],
-				},
-				beers: {
-					key: "unique_beers",
-					thresholds: [2, 5],
-					legendTitle: "Unique beers",
-					legendRows: ["1 beer", "2–4 beers", "5+ beers"],
+					legendRows: ["1", "2–4", "5+"],
 				},
 				abv: {
 					key: "average_abv",
 					thresholds: [5, 7],
 					legendTitle: "Avg ABV",
-					legendRows: ["Under 5%", "5–7%", "7%+"],
+					legendRows: ["<5%", "5–<7%", "≥7%"],
 				},
 			};
-			let activeMetric = "checkins";
+			let activeMetric = Object.hasOwn(metrics, initialParameters.get("metric"))
+				? initialParameters.get("metric") : "checkins";
 
-			function bubblePaint(theme) {
+			function updateFilterSummary() {
+				document.getElementById("display-summary").textContent = viewMode === "heatmap" ? "Heatmap · Check-ins"
+					: activeMetric === "abv" ? "Bubbles · Avg ABV" : "";
+				const selection = JSON.stringify([activeServing, activeStyle, timeStartSlider.value, timeSlider.value,
+					playbackDay !== null, mobileLayout.matches]);
+				if (filterChips.dataset.selection === selection) return;
+				filterChips.dataset.selection = selection;
+				const filters = [];
+				if (activeServing !== "all") {
+					const label = servingButtons[activeServing].textContent;
+					filters.push(["serving", label, `Remove ${label} serving filter`]);
+				}
+				if (activeStyle) filters.push(["style", activeStyle, `Remove ${activeStyle} style filter`]);
+				if (timeline && (Number(timeStartSlider.value) > 0 || Number(timeSlider.value) < timeline.totalDays)) {
+					const start = parseLocalDate(dateStart.value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+					const end = parseLocalDate(dateEnd.value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+					const label = Number(timeStartSlider.value) === 0 ? `Through ${end}`
+						: Number(timeSlider.value) === timeline.totalDays ? `From ${start}` : `${start} – ${end}`;
+					filters.push(["dates", label, "Remove date filter"]);
+				}
+				if (playbackDay !== null) filters.push(["playback", "Playback", "Clear playback position"]);
+				filtersButton.textContent = (mobileLayout.matches ? "Filters & view" : "Filters")
+					+ (filters.length ? ` (${filters.length})` : "");
+				const focusedFilter = filterChips.contains(document.activeElement) ? document.activeElement.dataset.filter : null;
+				filterChips.replaceChildren(...filters.map(([key, label, description]) => {
+					const button = document.createElement("button");
+					button.type = "button";
+					button.dataset.filter = key;
+					button.textContent = label;
+					button.setAttribute("aria-label", description);
+					return button;
+				}));
+				filterChips.hidden = filters.length === 0;
+				resetFilters.hidden = filters.length === 0;
+				if (focusedFilter) {
+					(filterChips.querySelector(`[data-filter="${focusedFilter}"]`) ?? filterChips.firstElementChild ?? filtersButton).focus();
+				}
+			}
+
+			const arrangeControls = () => {
+				filterSheet.close();
+				closeStyleOptions();
+				const displayControls = document.getElementById("display-controls");
+				if (mobileLayout.matches) {
+					document.getElementById("sheet-controls").append(displayControls, filterFields);
+					filterFields.hidden = false;
+					filtersButton.setAttribute("aria-controls", "filter-sheet");
+					filtersButton.setAttribute("aria-haspopup", "dialog");
+				} else {
+					document.getElementById("desktop-controls").append(displayControls);
+					document.getElementById("desktop-filters").append(filterFields);
+					filterFields.hidden = true;
+					filtersButton.setAttribute("aria-controls", "filter-fields");
+					filtersButton.removeAttribute("aria-haspopup");
+				}
+				filtersButton.setAttribute("aria-expanded", "false");
+				timeDates.hidden = mobileLayout.matches;
+				datesButton.setAttribute("aria-expanded", "false");
+				updateFilterSummary();
+			};
+			mobileLayout.addEventListener("change", arrangeControls);
+			arrangeControls();
+			filtersButton.addEventListener("click", () => {
+				if (mobileLayout.matches) {
+					filterSheet.showModal();
+					filtersButton.setAttribute("aria-expanded", "true");
+				} else {
+					filterFields.hidden = !filterFields.hidden;
+					filtersButton.setAttribute("aria-expanded", String(!filterFields.hidden));
+					if (filterFields.hidden) closeStyleOptions();
+				}
+			});
+			document.getElementById("close-filters").addEventListener("click", () => filterSheet.close());
+			filterSheet.addEventListener("close", () => {
+				closeStyleOptions();
+				filtersButton.setAttribute("aria-expanded", "false");
+			});
+			filterSheet.addEventListener("keydown", (event) => {
+				if (event.key !== "Tab") return;
+				const controls = [...filterSheet.querySelectorAll("button:not(:disabled), input:not(:disabled)")]
+					.filter((element) => element.getClientRects().length > 0);
+				if (event.shiftKey && document.activeElement === controls[0]) {
+					event.preventDefault();
+					controls.at(-1).focus();
+				} else if (!event.shiftKey && document.activeElement === controls.at(-1)) {
+					event.preventDefault();
+					controls[0].focus();
+				}
+			});
+			filterSheet.addEventListener("click", (event) => {
+				const rectangle = filterSheet.getBoundingClientRect();
+				if (event.target === filterSheet && (event.clientY < rectangle.top || event.clientY > rectangle.bottom
+					|| event.clientX < rectangle.left || event.clientX > rectangle.right)) filterSheet.close();
+			});
+			datesButton.addEventListener("click", () => {
+				timeDates.hidden = !timeDates.hidden;
+				datesButton.setAttribute("aria-expanded", String(!timeDates.hidden));
+			});
+			document.getElementById("legend-info").addEventListener("click", (event) => {
+				const description = document.getElementById("legend-clusters");
+				description.hidden = !description.hidden;
+				event.currentTarget.setAttribute("aria-expanded", String(!description.hidden));
+			});
+			filterChips.addEventListener("click", (event) => {
+				const button = event.target.closest("button");
+				if (!button) return;
+				if (button.dataset.filter === "serving") setServing("all");
+				else if (button.dataset.filter === "style") setStyleFilter("");
+				else if (button.dataset.filter === "dates") document.getElementById("reset-dates").click();
+				else if (button.dataset.filter === "playback") {
+					pausePlayback();
+					updateTimeLabel();
+					scheduleCutoff();
+				}
+			});
+
+			function updateUrl() {
+				if (urlTimer !== null) {
+					return;
+				}
+				urlTimer = setTimeout(() => {
+					urlTimer = null;
+					const url = new URL(location.href);
+					for (const [key, value] of Object.entries({
+						view: viewMode === "bubbles" ? null : viewMode,
+						metric: activeMetric === "checkins" ? null : activeMetric,
+						serving: activeServing === "all" ? null : activeServing,
+						style: activeStyle || null,
+						from: timeline && Number(timeStartSlider.value) > 0
+							? new Date(timeline.startMs + Number(timeStartSlider.value) * 86_400_000).toISOString().slice(0, 10) : null,
+						through: timeline && Number(timeSlider.value) < timeline.totalDays
+							? new Date(timeline.startMs + Number(timeSlider.value) * 86_400_000).toISOString().slice(0, 10) : null,
+						at: timeline && playbackDay !== null
+							? new Date(timeline.startMs + playbackDay * 86_400_000).toISOString().slice(0, 10) : null,
+					})) {
+						if (value === null) {
+							url.searchParams.delete(key);
+						} else {
+							url.searchParams.set(key, value);
+						}
+					}
+					if (url.href !== location.href) {
+						history.replaceState(history.state, "", url);
+					}
+				}, 500);
+			}
+
+			function bubblePaint(theme, cluster = false) {
 				const metric = metrics[activeMetric];
+				const value = activeMetric === "abv" && cluster
+					? ["/", ["get", "abv_sum"], ["max", 1, ["get", "abv_count"]]]
+					: ["coalesce", ["get", metric.key], 0];
+				const thresholds = metric.thresholds;
 				return {
 					"circle-color": [
-						"step",
-						["coalesce", ["get", metric.key], 1],
-						theme.buckets[0],
-						metric.thresholds[0],
-						theme.buckets[1],
-						metric.thresholds[1],
-						theme.buckets[2],
+						"case",
+						["all", activeMetric === "abv", ["==", ["get", "abv_count"], 0]],
+						"#64748b",
+						["step", value, theme.buckets[0], thresholds[0], theme.buckets[1], thresholds[1], theme.buckets[2]],
 					],
 					"circle-radius": [
 						"step",
-						["coalesce", ["get", metric.key], 1],
-						8,
-						metric.thresholds[0],
-						10,
-						metric.thresholds[1],
-						12.5,
+						value,
+						cluster ? 16 : 8,
+						thresholds[0],
+						cluster ? 20 : 10,
+						thresholds[1],
+						cluster ? 26 : 12.5,
 					],
 				};
 			}
@@ -415,6 +1103,27 @@
 			}
 
 			function popupContent(properties) {
+				properties = { ...properties };
+				const beers = new Set();
+				const breweries = new Set();
+				const styles = new Map();
+				for (const checkin of properties.checkins) {
+					if (checkin.beer?.id) beers.add(checkin.beer.id);
+					if (checkin.beer?.brewery) breweries.add(checkin.beer.brewery);
+					if (checkin.style) styles.set(checkin.style, (styles.get(checkin.style) ?? 0) + 1);
+					if (checkin.beer?.name) {
+						properties.last_beer_name = checkin.beer.name;
+						properties.last_beer_brewery = checkin.beer.brewery;
+					}
+					if (checkin.time !== null) {
+						if (properties.first_checkin) properties.last_checkin = checkin.date;
+						else properties.first_checkin = checkin.date;
+					}
+				}
+				properties.unique_beers = beers.size;
+				properties.unique_breweries = breweries.size;
+				properties.top_styles = [...styles].sort((first, second) => second[1] - first[1])
+					.slice(0, 3).map(([style]) => style);
 				const container = document.createElement("div");
 
 				const venue = document.createElement("div");
@@ -450,11 +1159,19 @@
 					countParts.push(countNoun(properties.unique_breweries, "brewery", "breweries"));
 				}
 				if (properties.average_abv) {
-					countParts.push(`${properties.average_abv}% avg ABV`);
+					countParts.push(`${properties.average_abv.toFixed(1)}% avg ABV`);
+				} else {
+					countParts.push("ABV unavailable");
 				}
 				const counts = document.createElement("div");
 				counts.textContent = countParts.join(" · ");
 				container.appendChild(counts);
+				if (properties.abv_count > 0 && properties.abv_count < properties.total_venue_checkins) {
+					const coverage = document.createElement("div");
+					coverage.className = "popup-muted";
+					coverage.textContent = `ABV listed for ${properties.abv_count} of ${properties.total_venue_checkins} check-ins`;
+					container.appendChild(coverage);
+				}
 
 				// Rendered features carry arrays as JSON strings; canonical ones as arrays.
 				let topStyles = properties.top_styles;
@@ -489,7 +1206,7 @@
 			}
 
 			function parseCheckinTime(raw) {
-				const time = parseLocalDate(raw).getTime();
+				const time = Date.parse(String(raw).slice(0, 10));
 				return Number.isFinite(time) ? time : null;
 			}
 
@@ -508,13 +1225,21 @@
 						const servings = Array.isArray(feature.properties.checkin_servings)
 							? feature.properties.checkin_servings
 							: [];
+						const styles = feature.properties.checkin_styles ?? [];
+						const beers = feature.properties.checkin_beers ?? [];
 						const checkins = [];
 						for (const [position, date] of dates.entries()) {
 							const time = parseCheckinTime(date);
-							if (time === null) {
-								continue;
-							}
-							checkins.push({ time, serving: String(servings[position] ?? "").toLowerCase() });
+							const beer = beers[position];
+							checkins.push({
+								time,
+								date,
+								serving: String(servings[position] ?? "").toLowerCase(),
+								style: String(styles[position] ?? ""),
+								styleGroup: String(styles[position] ?? "").split(" - ")[0],
+								beer,
+								abv: Number.isFinite(beer?.abv) && beer.abv > 0 ? beer.abv : 0,
+							});
 						}
 						checkins.sort((first, second) => first.time - second.time);
 						return { feature, checkins };
@@ -528,62 +1253,111 @@
 			}
 
 			function applyCutoff(cutoffMs) {
+				if (filterFrame !== null) {
+					cancelAnimationFrame(filterFrame);
+					filterFrame = null;
+				}
+				const startMs = timeline && Number(timeStartSlider.value) > 0
+					? timeline.startMs + Number(timeStartSlider.value) * 86_400_000 : -Infinity;
 				const features = [];
 				propertiesById.clear();
 				for (const { feature, checkins } of canonicalFeatures) {
-					let visibleCheckins;
-					if (cutoffMs === Infinity && activeServing === "all") {
-						visibleCheckins = feature.properties.total_venue_checkins
-							?? Math.max(checkins.length, 1);
-					} else if (checkins.length === 0) {
-						// A file from before the per-check-in fields existed cannot be filtered.
-						if (activeServing !== "all") {
-							continue;
-						}
-						visibleCheckins = feature.properties.total_venue_checkins ?? 1;
-					} else {
-						visibleCheckins = checkins.filter(
-							(checkin) =>
-								checkin.time <= cutoffMs
-								&& (activeServing === "all" || checkin.serving === activeServing),
-						).length;
-						if (visibleCheckins === 0) {
-							continue;
+					// A file from before the per-check-in fields existed cannot be filtered.
+					const matchingCheckins = checkins.filter((checkin) =>
+						(checkin.time === null ? startMs === -Infinity && cutoffMs === Infinity
+							: checkin.time >= startMs && checkin.time <= cutoffMs)
+						&& (activeServing === "all" || checkin.serving === activeServing)
+						&& (activeStyle === "" || checkin.styleGroup === activeStyle),
+					);
+					if (matchingCheckins.length === 0) continue;
+					const properties = {
+						venue_id: feature.properties.venue_id,
+						venue_name: feature.properties.venue_name,
+						venue_city: feature.properties.venue_city,
+						venue_state: feature.properties.venue_state,
+						venue_country: feature.properties.venue_country,
+						total_venue_checkins: matchingCheckins.length,
+						abv_sum: 0,
+						abv_count: 0,
+						average_abv: undefined,
+						checkins: matchingCheckins,
+					};
+					for (const checkin of matchingCheckins) {
+						if (checkin.abv > 0) {
+							properties.abv_sum += checkin.abv;
+							properties.abv_count += 1;
 						}
 					}
-					const properties = { ...feature.properties, total_venue_checkins: visibleCheckins };
-					delete properties.checkin_dates;
-					delete properties.checkin_servings;
+					if (properties.abv_count) properties.average_abv = properties.abv_sum / properties.abv_count;
 					propertiesById.set(properties.venue_id, properties);
-					features.push({ type: "Feature", geometry: feature.geometry, properties });
+					const previous = filteredCollection?.features[features.length];
+					if (previous?.properties.venue_id === properties.venue_id
+						&& previous.geometry === feature.geometry
+						&& previous.properties.total_venue_checkins === properties.total_venue_checkins
+						&& previous.properties.abv_sum === properties.abv_sum
+						&& previous.properties.abv_count === properties.abv_count) {
+						features.push(previous);
+						continue;
+					}
+					features.push({
+						type: "Feature",
+						geometry: feature.geometry,
+						properties: {
+							venue_id: properties.venue_id,
+							total_venue_checkins: properties.total_venue_checkins,
+							average_abv: properties.average_abv,
+							abv_sum: properties.abv_sum,
+							abv_count: properties.abv_count,
+						},
+					});
 				}
-				filteredCollection = { type: "FeatureCollection", features };
-				map.getSource("venues")?.setData(filteredCollection);
-				map.getSource("venues-heat")?.setData(filteredCollection);
+				if (filteredCollection?.features.length !== features.length
+					|| features.some((feature, index) => feature !== filteredCollection.features[index])) {
+					filteredCollection = { type: "FeatureCollection", features };
+				}
+				const identifier = viewMode === "bubbles" ? "venues" : "venues-heat";
+				const source = map.getSource(identifier);
+				if (source && sourceCollections.get(identifier) !== filteredCollection) {
+					source.setData(filteredCollection);
+					sourceCollections.set(identifier, filteredCollection);
+				}
+				for (const [popup, venueId] of openPopups) {
+					const properties = propertiesById.get(venueId);
+					if (properties) popup.setDOMContent(popupContent(properties));
+					else popup.remove();
+				}
 				updateStats();
+				updateUrl();
+			}
+
+			function scheduleCutoff() {
+				if (filterFrame !== null) return;
+				filterFrame = requestAnimationFrame(() => {
+					filterFrame = null;
+					applyCutoff(currentCutoff());
+				});
 			}
 
 			function updateStats() {
 				let checkins = 0;
 				const states = new Set();
 				const countries = new Set();
-				for (const feature of filteredCollection.features) {
-					checkins += feature.properties.total_venue_checkins ?? 1;
+				for (const properties of propertiesById.values()) {
+					checkins += properties.total_venue_checkins ?? 1;
 					// Foreign provinces also live in venue_state, and D.C. is not a state.
 					if (
-						feature.properties.venue_state
-						&& feature.properties.venue_state !== "D.C."
-						&& feature.properties.venue_country === "United States"
+						properties.venue_state
+						&& properties.venue_state !== "D.C."
+						&& properties.venue_country === "United States"
 					) {
-						states.add(feature.properties.venue_state);
+						states.add(properties.venue_state);
 					}
-					if (feature.properties.venue_country) {
-						countries.add(feature.properties.venue_country);
+					if (properties.venue_country) {
+						countries.add(properties.venue_country);
 					}
 				}
 				const parts = [
 					countNoun(filteredCollection.features.length, "venue"),
-					countNoun(checkins, "check-in"),
 				];
 				if (states.size > 0) {
 					parts.push(countNoun(states.size, "state"));
@@ -591,8 +1365,10 @@
 				if (countries.size > 0) {
 					parts.push(countNoun(countries.size, "country", "countries"));
 				}
-				statsElement.textContent = parts.join(" · ");
+				document.getElementById("checkin-count").textContent = countNoun(checkins, "check-in");
+				document.getElementById("location-counts").textContent = parts.join(" · ");
 				statsElement.hidden = false;
+				updateFilterSummary();
 			}
 
 			function updateLegend() {
@@ -603,55 +1379,174 @@
 					document.getElementById(`legend-dot-${row}`).style.background = theme.buckets[row - 1];
 					document.getElementById(`legend-label-${row}`).textContent = metric.legendRows[row - 1];
 				}
+				document.getElementById("legend-unknown").hidden = activeMetric !== "abv";
+				document.getElementById("legend-clusters").textContent = activeMetric === "abv"
+					? "Cluster labels show average ABV" : "Cluster labels show check-ins";
 			}
 
 			function setMetric(name) {
 				activeMetric = name;
 				for (const [metricName, button] of Object.entries(metricButtons)) {
 					button.classList.toggle("active", metricName === name);
+					button.setAttribute("aria-pressed", String(metricName === name));
 				}
-				if (map.getLayer("venue-points")) {
-					const paint = bubblePaint(currentTheme());
-					map.setPaintProperty("venue-points", "circle-color", paint["circle-color"]);
-					map.setPaintProperty("venue-points", "circle-radius", paint["circle-radius"]);
+				for (const layer of ["venue-points", "clusters"]) {
+					if (!map.getLayer(layer)) continue;
+					const paint = bubblePaint(currentTheme(), layer === "clusters");
+					map.setPaintProperty(layer, "circle-color", paint["circle-color"]);
+					map.setPaintProperty(layer, "circle-radius", paint["circle-radius"]);
+				}
+				if (map.getLayer("cluster-counts")) {
+					map.setLayoutProperty("cluster-counts", "text-field", activeMetric === "abv"
+						? ["case", [">", ["get", "abv_count"], 0],
+							["concat", ["number-format", ["/", ["get", "abv_sum"], ["max", 1, ["get", "abv_count"]]],
+								{ "min-fraction-digits": 1, "max-fraction-digits": 1 }], "%"], "?"]
+						: ["number-format", ["get", "total_venue_checkins"], {}]);
 				}
 				updateLegend();
+				updateFilterSummary();
+				updateUrl();
 			}
 			for (const [metricName, button] of Object.entries(metricButtons)) {
 				button.addEventListener("click", () => setMetric(metricName));
 			}
 
 			function currentCutoff() {
-				return timeline ? sliderCutoff() : Infinity;
+				return playbackDay !== null ? timeline.startMs + playbackDay * 86_400_000
+					: timeline ? sliderCutoff() : Infinity;
 			}
 
 			function setServing(name) {
 				activeServing = name;
 				for (const [servingName, button] of Object.entries(servingButtons)) {
 					button.classList.toggle("active", servingName === name);
+					button.setAttribute("aria-pressed", String(servingName === name));
 				}
-				applyCutoff(currentCutoff());
+				updateFilterSummary();
+				scheduleCutoff();
 			}
 			for (const [servingName, button] of Object.entries(servingButtons)) {
 				button.addEventListener("click", () => setServing(servingName));
 			}
+			function closeStyleOptions() {
+				styleOptions.hidden = true;
+				styleEmpty.hidden = true;
+				styleFilter.setAttribute("aria-expanded", "false");
+				styleFilter.removeAttribute("aria-activedescendant");
+			}
+
+			function setStyleFilter(style) {
+				activeStyle = style;
+				styleFilter.value = style || "All styles";
+				closeStyleOptions();
+				updateFilterSummary();
+				scheduleCutoff();
+			}
+
+			function renderStyleOptions(search = "") {
+				const matches = ["", ...styleGroups].filter((style) =>
+					(style || "All styles").toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
+				);
+				styleOptions.replaceChildren(...matches.map((style, index) => {
+					const option = document.createElement("li");
+					option.id = `style-option-${index}`;
+					option.setAttribute("role", "option");
+					option.setAttribute("aria-selected", String(index === 0));
+					option.dataset.style = style;
+					option.textContent = style || "All styles";
+					return option;
+				}));
+				styleOptions.hidden = matches.length === 0;
+				styleEmpty.hidden = matches.length !== 0;
+				styleFilter.setAttribute("aria-expanded", "true");
+				if (matches.length) styleFilter.setAttribute("aria-activedescendant", "style-option-0");
+				else styleFilter.removeAttribute("aria-activedescendant");
+			}
+			styleFilter.addEventListener("focus", () => {
+				styleFilter.value = activeStyle;
+				styleFilter.select();
+				renderStyleOptions();
+			});
+			styleFilter.addEventListener("click", () => {
+				if (styleFilter.getAttribute("aria-expanded") === "false") {
+					styleFilter.value = activeStyle;
+					styleFilter.select();
+					renderStyleOptions();
+				}
+			});
+			styleFilter.addEventListener("input", () => renderStyleOptions(styleFilter.value));
+			styleFilter.addEventListener("blur", () => {
+				styleFilter.value = activeStyle || "All styles";
+				closeStyleOptions();
+			});
+			styleFilter.addEventListener("keydown", (event) => {
+				if (event.key === "Escape") {
+					if (styleFilter.getAttribute("aria-expanded") === "true") {
+						event.preventDefault();
+						event.stopPropagation();
+						styleFilter.value = activeStyle || "All styles";
+						closeStyleOptions();
+					}
+				} else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+					event.preventDefault();
+					if (styleFilter.getAttribute("aria-expanded") === "false") {
+						renderStyleOptions();
+						return;
+					}
+					const options = [...styleOptions.children];
+					if (!options.length) return;
+					const current = options.findIndex((option) => option.id === styleFilter.getAttribute("aria-activedescendant"));
+					const next = Math.max(0, Math.min(options.length - 1, current + (event.key === "ArrowDown" ? 1 : -1)));
+					options.forEach((option, index) => option.setAttribute("aria-selected", String(index === next)));
+					styleFilter.setAttribute("aria-activedescendant", options[next].id);
+					options[next].scrollIntoView({ block: "nearest" });
+				} else if (event.key === "Enter" && !styleOptions.hidden) {
+					event.preventDefault();
+					const option = document.getElementById(styleFilter.getAttribute("aria-activedescendant"));
+					if (option) setStyleFilter(option.dataset.style);
+				}
+			});
+			styleOptions.addEventListener("pointerdown", (event) => event.preventDefault());
+			styleOptions.addEventListener("click", (event) => {
+				const option = event.target.closest('[role="option"]');
+				if (option) setStyleFilter(option.dataset.style);
+			});
+			resetFilters.addEventListener("click", () => {
+				pausePlayback();
+				if (timeline) {
+					timeStartSlider.value = "0";
+					timeSlider.value = String(timeline.totalDays);
+					updateTimeLabel();
+				}
+				activeServing = "all";
+				setStyleFilter("");
+				setServing("all");
+				filtersButton.focus();
+			});
 
 			function addMapData() {
 				if (map.getSource("venues")) {
 					return;
 				}
 				const theme = currentTheme();
+				sourceCollections.clear();
 				map.addSource("venues", {
 					type: "geojson",
-					data: filteredCollection,
+					data: viewMode === "bubbles" ? filteredCollection : { type: "FeatureCollection", features: [] },
 					cluster: true,
 					clusterMaxZoom: 11,
 					clusterRadius: 45,
 					clusterProperties: {
-						checkins: ["+", ["coalesce", ["get", "total_venue_checkins"], 1]],
+						total_venue_checkins: ["+", ["get", "total_venue_checkins"]],
+						abv_sum: ["+", ["get", "abv_sum"]],
+						abv_count: ["+", ["get", "abv_count"]],
 					},
 				});
-				map.addSource("venues-heat", { type: "geojson", data: filteredCollection });
+				map.addSource("venues-heat", {
+					type: "geojson",
+					data: viewMode === "heatmap" ? filteredCollection : { type: "FeatureCollection", features: [] },
+				});
+				sourceCollections.set(viewMode === "bubbles" ? "venues" : "venues-heat", filteredCollection);
 
 				map.addLayer({
 					id: "venue-heat",
@@ -679,9 +1574,8 @@
 					filter: ["has", "point_count"],
 					layout: { visibility: bubbleVisibility },
 					paint: {
-						"circle-color": theme.cluster,
 						// Cluster size tracks summed check-ins, not venue count.
-						"circle-radius": ["step", ["get", "checkins"], 14, 25, 18, 100, 24],
+						...bubblePaint(theme, true),
 						"circle-stroke-width": 1.5,
 						"circle-stroke-color": "#ffffff",
 					},
@@ -694,12 +1588,14 @@
 					filter: ["has", "point_count"],
 					layout: {
 						visibility: bubbleVisibility,
-						"text-field": ["get", "point_count_abbreviated"],
+						"text-field": ["number-format", ["get", "total_venue_checkins"], {}],
 						"text-font": ["Noto Sans Regular"],
 						"text-size": 12,
 					},
 					paint: {
 						"text-color": "#ffffff",
+						"text-halo-color": "#1c1c1c",
+						"text-halo-width": 1.5,
 					},
 				});
 
@@ -715,12 +1611,21 @@
 						"circle-stroke-color": "#ffffff",
 					},
 				});
+				setMetric(activeMetric);
 			}
 
 			function setViewMode(mode) {
 				viewMode = mode;
+				const identifier = viewMode === "bubbles" ? "venues" : "venues-heat";
+				const source = map.getSource(identifier);
+				if (source && sourceCollections.get(identifier) !== filteredCollection) {
+					source.setData(filteredCollection);
+					sourceCollections.set(identifier, filteredCollection);
+				}
 				bubblesButton.classList.toggle("active", mode === "bubbles");
 				heatmapButton.classList.toggle("active", mode === "heatmap");
+				bubblesButton.setAttribute("aria-pressed", String(mode === "bubbles"));
+				heatmapButton.setAttribute("aria-pressed", String(mode === "heatmap"));
 				legendElement.hidden = mode !== "bubbles";
 				metricToggleElement.hidden = mode !== "bubbles" || !filteredCollection;
 				const bubbleVisibility = mode === "bubbles" ? "visible" : "none";
@@ -736,6 +1641,8 @@
 						mode === "heatmap" ? "visible" : "none",
 					);
 				}
+				updateFilterSummary();
+				updateUrl();
 			}
 			bubblesButton.addEventListener("click", () => setViewMode("bubbles"));
 			heatmapButton.addEventListener("click", () => setViewMode("heatmap"));
@@ -749,25 +1656,42 @@
 			}
 
 			function updateTimeLabel() {
-				const cutoffMs = sliderCutoff();
-				if (cutoffMs === Infinity) {
-					timeLabel.textContent = "All check-ins";
-					return;
+				dateStart.value = new Date(timeline.startMs + Number(timeStartSlider.value) * 86_400_000)
+					.toISOString().slice(0, 10);
+				dateEnd.value = new Date(timeline.startMs + Number(timeSlider.value) * 86_400_000)
+					.toISOString().slice(0, 10);
+				timeLabel.textContent = Number(timeStartSlider.value) === 0
+					&& Number(timeSlider.value) === timeline.totalDays ? "All check-ins" : "Date range";
+				datesButton.textContent = timeLabel.textContent === "All check-ins" ? "All dates"
+					: `${parseLocalDate(dateStart.value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })} – ${parseLocalDate(dateEnd.value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })}`;
+				document.getElementById("reset-dates").hidden = timeLabel.textContent === "All check-ins" && playbackDay === null;
+				playButton.disabled = timeStartSlider.value === timeSlider.value;
+				document.getElementById("playhead").hidden = playbackDay === null;
+				if (playbackDay !== null) {
+					timeLabel.textContent = `Through ${formatDate(new Date(timeline.startMs + playbackDay * 86_400_000).toISOString().slice(0, 10))}`;
+					datesButton.textContent = timeLabel.textContent;
+					timeRange.style.setProperty("--playhead", `${timeline.totalDays ? playbackDay / timeline.totalDays * 100 : 50}%`);
 				}
-				timeLabel.textContent = `Through ${new Date(cutoffMs).toLocaleDateString("en-US", {
-					month: "short",
-					day: "numeric",
-					year: "numeric",
-				})}`;
+				timeRange.style.setProperty("--range-start", `${timeline.totalDays
+					? Number(timeStartSlider.value) / timeline.totalDays * 100 : 50}%`);
+				timeRange.style.setProperty("--range-end", `${timeline.totalDays
+					? Number(timeSlider.value) / timeline.totalDays * 100 : 50}%`);
+				timeStartSlider.setAttribute("aria-valuemax", timeSlider.value);
+				timeSlider.setAttribute("aria-valuemin", timeStartSlider.value);
+				timeStartSlider.setAttribute("aria-valuetext", formatDate(dateStart.value));
+				timeSlider.setAttribute("aria-valuetext", formatDate(dateEnd.value));
+				updateFilterSummary();
 			}
 
-			function pausePlayback() {
+			function pausePlayback(keepPosition = false) {
 				if (playTimer) {
 					clearInterval(playTimer);
 					playTimer = null;
 					playButton.innerHTML = "&#9654;";
 					playButton.setAttribute("aria-label", "Play");
 				}
+				if (!keepPosition) playbackDay = null;
+				updateUrl();
 			}
 
 			function setupTimeline() {
@@ -776,45 +1700,130 @@
 				let endMs = -Infinity;
 				for (const { checkins } of canonicalFeatures) {
 					for (const { time } of checkins) {
+						if (time === null) continue;
 						if (time < startMs) startMs = time;
 						if (time > endMs) endMs = time;
 					}
 				}
-				if (!Number.isFinite(startMs) || endMs <= startMs) {
+				if (!Number.isFinite(startMs)) {
 					return;
 				}
 				const totalDays = Math.ceil((endMs - startMs) / 86_400_000);
-				timeline = { startMs, totalDays };
+				timeline = { startMs, endMs, totalDays };
+				dateStart.min = dateEnd.min = new Date(startMs).toISOString().slice(0, 10);
+				dateStart.max = dateEnd.max = new Date(endMs).toISOString().slice(0, 10);
+				dateStart.value = initialParameters.get("from") ?? dateStart.min;
+				dateEnd.value = initialParameters.get("through") ?? dateEnd.max;
+				dateStart.valueAsNumber = Math.max(startMs, Math.min(endMs,
+					Number.isFinite(dateStart.valueAsNumber) ? dateStart.valueAsNumber : startMs));
+				dateEnd.valueAsNumber = Math.max(startMs, Math.min(endMs,
+					Number.isFinite(dateEnd.valueAsNumber) ? dateEnd.valueAsNumber : endMs));
+				if (dateStart.value > dateEnd.value) dateEnd.value = dateStart.value;
+				timeStartSlider.max = String(totalDays);
+				timeStartSlider.value = String((dateStart.valueAsNumber - startMs) / 86_400_000);
 				timeSlider.max = String(totalDays);
-				timeSlider.value = String(totalDays);
+				timeSlider.value = String((dateEnd.valueAsNumber - startMs) / 86_400_000);
+				const sharedPlayback = Date.parse(initialParameters.get("at") ?? "");
+				if (Number.isFinite(sharedPlayback)) {
+					playbackDay = Math.max(Number(timeStartSlider.value), Math.min(Number(timeSlider.value),
+						Math.round((sharedPlayback - startMs) / 86_400_000)));
+				}
+				timeStartSlider.disabled = totalDays === 0;
+				timeSlider.disabled = totalDays === 0;
+				playButton.disabled = totalDays === 0;
 				timeControlElement.hidden = false;
 				updateTimeLabel();
 
-				timeSlider.addEventListener("input", () => {
+				for (const slider of [timeStartSlider, timeSlider]) {
+					slider.addEventListener("input", () => {
+						pausePlayback();
+						slider.value = String(slider === timeStartSlider
+							? Math.min(Number(slider.value), Number(timeSlider.value))
+							: Math.max(Number(slider.value), Number(timeStartSlider.value)));
+						updateTimeLabel();
+						scheduleCutoff();
+					});
+				}
+
+				let draggedSlider = null;
+				let rangePointerId = null;
+				for (const eventName of ["pointerdown", "pointermove"]) {
+					timeRange.addEventListener(eventName, (event) => {
+						if (!event.isPrimary || totalDays === 0) return;
+						if (event.type === "pointerdown" && event.button !== 0) return;
+						if (event.type === "pointermove" && event.pointerId !== rangePointerId) return;
+						const rectangle = timeRange.getBoundingClientRect();
+						const fraction = Math.max(0, Math.min(1,
+							(event.clientX - rectangle.left - 12) / (rectangle.width - 24),
+						));
+						const value = Math.round(fraction * totalDays);
+						if (event.type === "pointerdown") {
+							draggedSlider = fraction * totalDays < (Number(timeStartSlider.value) + Number(timeSlider.value)) / 2
+								|| Number(timeStartSlider.value) === totalDays ? timeStartSlider : timeSlider;
+							rangePointerId = event.pointerId;
+							timeRange.setPointerCapture(event.pointerId);
+							draggedSlider.focus({ preventScroll: true });
+						}
+						event.preventDefault();
+						draggedSlider.value = String(value);
+						draggedSlider.dispatchEvent(new Event("input", { bubbles: true }));
+					});
+				}
+				timeRange.addEventListener("lostpointercapture", () => {
+					draggedSlider = null;
+					rangePointerId = null;
+				});
+
+				for (const input of [dateStart, dateEnd]) {
+					input.addEventListener("focus", () => pausePlayback(true));
+					const commitDateRange = (event) => {
+						if (event.type === "change" && (!input.validity.valid || !Number.isFinite(input.valueAsNumber))) return;
+						pausePlayback();
+						input.valueAsNumber = Math.max(startMs, Math.min(endMs,
+							Number.isFinite(input.valueAsNumber) ? input.valueAsNumber
+								: input === dateStart ? startMs : endMs,
+						));
+						if (dateStart.value > dateEnd.value) {
+							if (input === dateStart) dateEnd.value = dateStart.value;
+							else dateStart.value = dateEnd.value;
+						}
+						timeStartSlider.value = String((dateStart.valueAsNumber - startMs) / 86_400_000);
+						timeSlider.value = String((dateEnd.valueAsNumber - startMs) / 86_400_000);
+						updateTimeLabel();
+						applyCutoff(sliderCutoff());
+					};
+					input.addEventListener("change", commitDateRange);
+					input.addEventListener("blur", commitDateRange);
+					input.addEventListener("keydown", (event) => {
+						if (event.key === "Enter") commitDateRange(event);
+					});
+				}
+				document.getElementById("reset-dates").addEventListener("click", () => {
 					pausePlayback();
-					applyCutoff(sliderCutoff());
+					timeStartSlider.value = "0";
+					timeSlider.value = String(totalDays);
 					updateTimeLabel();
+					applyCutoff(Infinity);
 				});
 
 				playButton.addEventListener("click", () => {
 					if (playTimer) {
-						pausePlayback();
+						pausePlayback(true);
 						return;
 					}
-					if (Number(timeSlider.value) >= timeline.totalDays) {
-						timeSlider.value = "0";
-					}
-					const step = Math.max(1, Math.round(timeline.totalDays / 240));
+					if (playbackDay === null) playbackDay = Number(timeStartSlider.value);
+					updateTimeLabel();
+					applyCutoff(currentCutoff());
+					const step = Math.max(1, Math.round((Number(timeSlider.value) - Number(timeStartSlider.value)) / 240));
 					playButton.innerHTML = "&#9646;&#9646;";
 					playButton.setAttribute("aria-label", "Pause");
 					playTimer = setInterval(() => {
-						const next = Math.min(Number(timeSlider.value) + step, timeline.totalDays);
-						timeSlider.value = String(next);
-						applyCutoff(sliderCutoff());
-						updateTimeLabel();
-						if (next >= timeline.totalDays) {
+						playbackDay = Math.min(playbackDay + step, Number(timeSlider.value));
+						if (playbackDay >= Number(timeSlider.value)) {
 							pausePlayback();
 						}
+						updateTimeLabel();
+						applyCutoff(currentCutoff());
 					}, 60);
 				});
 			}
@@ -867,10 +1876,30 @@
 				}
 
 				prepareFeatures(venues);
-				applyCutoff(Infinity);
-				addMapData();
-				updateLegend();
+				const styles = new Set();
+				for (const { checkins } of canonicalFeatures) {
+					for (const { styleGroup } of checkins) {
+						if (styleGroup) styles.add(styleGroup);
+					}
+				}
+				for (const style of [...styles].sort((first, second) => first.localeCompare(second))) {
+					styleGroups.add(style);
+				}
+				styleFilter.value = styles.has(initialParameters.get("style"))
+					? initialParameters.get("style") : "";
+				activeStyle = styleFilter.value;
+				styleFilter.value = activeStyle || "All styles";
+				document.getElementById("style-control").hidden = styles.size === 0;
 				setupTimeline();
+				applyCutoff(currentCutoff());
+				addMapData();
+				setMetric(activeMetric);
+				setViewMode(viewMode);
+				for (const [servingName, button] of Object.entries(servingButtons)) {
+					button.classList.toggle("active", servingName === activeServing);
+					button.setAttribute("aria-pressed", String(servingName === activeServing));
+				}
+				document.getElementById("map-controls").hidden = false;
 				viewToggleElement.hidden = false;
 				metricToggleElement.hidden = viewMode !== "bubbles";
 				servingToggleElement.hidden = !hasServingData();
@@ -916,6 +1945,8 @@
 					map.on("mousemove", "venue-points", (event) => {
 						const feature = event.features[0];
 						const venueId = feature.properties.venue_id;
+						const properties = propertiesById.get(venueId);
+						if (!properties) return;
 						if (venueId === hoverVenueId) {
 							return;
 						}
@@ -929,8 +1960,11 @@
 							className: "hover-popup",
 						})
 							.setLngLat(feature.geometry.coordinates)
-							.setDOMContent(popupContent(propertiesById.get(venueId) ?? feature.properties))
+							.setDOMContent(popupContent(properties))
 							.addTo(map);
+						const popup = hoverPopup;
+						openPopups.set(popup, venueId);
+						popup.on("close", () => openPopups.delete(popup));
 					});
 					map.on("mouseleave", "venue-points", clearHoverPopup);
 				}
@@ -938,12 +1972,14 @@
 				map.on("click", "venue-points", (event) => {
 					clearHoverPopup();
 					const feature = event.features[0];
-					const properties = propertiesById.get(feature.properties.venue_id)
-						?? feature.properties;
-					new maplibregl.Popup({ maxWidth: "320px" })
+					const properties = propertiesById.get(feature.properties.venue_id);
+					if (!properties) return;
+					const popup = new maplibregl.Popup({ maxWidth: "320px" })
 						.setLngLat(feature.geometry.coordinates)
 						.setDOMContent(popupContent(properties))
 						.addTo(map);
+					openPopups.set(popup, feature.properties.venue_id);
+					popup.on("close", () => openPopups.delete(popup));
 				});
 
 				for (const layer of ["clusters", "venue-points"]) {
