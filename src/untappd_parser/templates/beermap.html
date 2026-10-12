@@ -567,8 +567,28 @@
 					width: calc(100vw - 72px);
 				}
 				.top-left {
+					display: grid;
+					grid-template-columns: minmax(0, 1fr) auto;
+					align-items: center;
 					gap: 8px;
 					padding: 12px;
+				}
+				.stats {
+					display: contents;
+				}
+				#location-counts,
+				#display-summary {
+					grid-column: 1 / -1;
+					margin-top: 0;
+				}
+				#filter-chips {
+					grid-column: 1;
+					grid-row: 4;
+				}
+				#reset-filters {
+					grid-column: 2;
+					grid-row: 4;
+					align-self: start;
 				}
 				#desktop-controls,
 				#desktop-filters {
@@ -584,10 +604,11 @@
 					display: block;
 				}
 				.filter-actions {
-					border: none;
-					padding-top: 0;
+					display: contents;
 				}
 				#filters-button {
+					grid-column: 2;
+					grid-row: 1;
 					padding: 8px;
 				}
 				.time-control {
@@ -628,6 +649,18 @@
 				#legend-info,
 				#play-button {
 					width: 44px;
+				}
+				.maplibregl-ctrl-group .maplibregl-ctrl-zoom-in,
+				.maplibregl-ctrl-group .maplibregl-ctrl-zoom-out {
+					display: none;
+				}
+				.maplibregl-popup-close-button {
+					width: 44px;
+					height: 44px;
+					font-size: 22px;
+				}
+				.popup-venue {
+					padding-right: 28px;
 				}
 				.style-chevron {
 					top: 17px;
@@ -1852,6 +1885,9 @@
 
 			map.on("load", async () => {
 				mapLoaded = true;
+				if (mobileLayout.matches) {
+					map.getContainer().querySelector(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show");
+				}
 				let venues;
 				try {
 					// The data is inlined by default. ?data= lets an embedding page point at a
@@ -1974,12 +2010,22 @@
 					const feature = event.features[0];
 					const properties = propertiesById.get(feature.properties.venue_id);
 					if (!properties) return;
-					const popup = new maplibregl.Popup({ maxWidth: "320px" })
+					const popup = new maplibregl.Popup({ maxWidth: "min(320px, calc(100vw - 24px))" })
 						.setLngLat(feature.geometry.coordinates)
 						.setDOMContent(popupContent(properties))
 						.addTo(map);
 					openPopups.set(popup, feature.properties.venue_id);
 					popup.on("close", () => openPopups.delete(popup));
+					if (mobileLayout.matches) {
+						const point = map.project(feature.geometry.coordinates);
+						const top = Math.max(
+							document.querySelector(".map-sidebar").getBoundingClientRect().bottom,
+							map.getContainer().querySelector(".maplibregl-ctrl-top-right").getBoundingClientRect().bottom,
+						);
+						const bottom = timeControlElement.getBoundingClientRect().top;
+						const target = Math.min(top + popup.getElement().offsetHeight + 24, bottom - 24);
+						map.panBy([point.x - map.getContainer().clientWidth / 2, point.y - target]);
+					}
 				});
 
 				for (const layer of ["clusters", "venue-points"]) {

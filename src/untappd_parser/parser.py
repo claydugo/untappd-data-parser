@@ -383,9 +383,7 @@ class UntappdParser:
                 brewery_countries[entry["brewery_country"]] += 1
             if entry.get("flavor_profiles"):
                 flavor_tagged_checkins += 1
-                for flavor in str(entry["flavor_profiles"]).split(","):
-                    if flavor.strip():
-                        flavor_counts[flavor.strip()] += 1
+                flavor_counts.update(entry["flavor_profiles"])
 
         def mean(values: list[float], digits: int) -> float | None:
             return round(sum(values) / len(values), digits) if values else None
