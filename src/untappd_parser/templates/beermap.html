@@ -686,12 +686,45 @@
 			.popup-muted {
 				color: var(--panel-muted);
 			}
+			.popup-section {
+				margin-top: 8px;
+				border-top: 1px solid var(--panel-border);
+				padding-top: 8px;
+			}
+			.popup-heading {
+				margin-bottom: 4px;
+				font-size: 11px;
+				font-weight: 600;
+				letter-spacing: 0.04em;
+				text-transform: uppercase;
+				color: var(--panel-muted);
+			}
 			.popup-beers {
 				display: grid;
 				gap: 6px;
-				margin: 8px 0;
+				margin: 0;
 				padding: 0;
 				list-style: none;
+			}
+			.popup-count {
+				font-size: 12px;
+				font-weight: 400;
+			}
+			.popup-note {
+				margin-top: 6px;
+				font-size: 12px;
+			}
+			.popup-styles {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 4px;
+			}
+			.popup-style {
+				border-radius: 999px;
+				background: color-mix(in srgb, var(--accent) 12%, transparent);
+				padding: 1px 8px;
+				font-size: 11px;
+				line-height: 1.6;
 			}
 			.popup-beers li {
 				display: grid;
@@ -823,7 +856,7 @@
 
 			const darkScheme = matchMedia("(prefers-color-scheme: dark)");
 			// Amber ramps: light validated on the Positron basemap, dark against
-			// the dark style surface (#0c0c0c). Bucket order is 1, 2-4, 5+.
+			// the recolored dark style surface (#242f3e). Bucket order is 1, 2-4, 5+.
 			const themes = {
 				light: {
 					style: "https://tiles.openfreemap.org/styles/positron",
@@ -836,6 +869,42 @@
 					buckets: ["#D97706", "#F59E0B", "#FCD34D"],
 					cluster: "#546E7A",
 					heat: [0, "rgba(217, 119, 6, 0)", 0.15, "#92400E", 0.4, "#D97706", 0.7, "#F59E0B", 1, "#FCD34D"],
+					paint: {
+						background: { "background-color": "#242f3e" },
+						water: { "fill-color": "#111d2d" },
+						waterway: { "line-color": "#111d2d" },
+						landcover_wood: { "fill-color": "#263c3f" },
+						landuse_park: { "fill-color": "#263c3f" },
+						landuse_residential: { "fill-color": "#2a3544", "fill-opacity": 0.6 },
+						building: { "fill-color": "#2e3a4a", "fill-outline-color": "#38465a" },
+						highway_path: { "line-color": "#3b4656" },
+						highway_minor: { "line-color": "#38414e" },
+						highway_major_casing: { "line-color": "#212a37" },
+						highway_major_inner: { "line-color": "#4b5668" },
+						highway_major_subtle: { "line-color": "#4b5668" },
+						highway_motorway_casing: { "line-color": "#212a37" },
+						highway_motorway_inner: { "line-color": "#5c6a80" },
+						highway_motorway_subtle: { "line-color": "#4b5668" },
+						railway: { "line-color": "#3b4656" },
+						railway_minor: { "line-color": "#3b4656" },
+						railway_transit: { "line-color": "#3b4656" },
+						boundary_state: { "line-color": "#5c6a80" },
+						"boundary_country_z0-4": { "line-color": "#6b7a90" },
+						"boundary_country_z5-": { "line-color": "#6b7a90" },
+						water_name: { "text-color": "#5d7fa3", "text-halo-color": "#111d2d" },
+						highway_name_other: { "text-color": "#9ca5b3", "text-halo-color": "#1b222c" },
+						highway_name_motorway: { "text-color": "#9ca5b3", "text-halo-color": "#1b222c" },
+						place_other: { "text-color": "#c3cbd6", "text-halo-color": "#1b222c" },
+						place_suburb: { "text-color": "#c3cbd6", "text-halo-color": "#1b222c" },
+						place_village: { "text-color": "#c3cbd6", "text-halo-color": "#1b222c" },
+						place_town: { "text-color": "#c3cbd6", "text-halo-color": "#1b222c" },
+						place_city: { "text-color": "#c3cbd6", "text-halo-color": "#1b222c" },
+						place_city_large: { "text-color": "#c3cbd6", "text-halo-color": "#1b222c" },
+						place_state: { "text-color": "#c3cbd6", "text-halo-color": "#1b222c" },
+						place_country_other: { "text-color": "#c3cbd6", "text-halo-color": "#1b222c" },
+						place_country_minor: { "text-color": "#c3cbd6", "text-halo-color": "#1b222c" },
+						place_country_major: { "text-color": "#c3cbd6", "text-halo-color": "#1b222c" },
+					},
 				},
 			};
 			function currentTheme() {
@@ -1195,35 +1264,22 @@
 					container.appendChild(place);
 				}
 
-				const recentCheckins = properties.checkins.filter((checkin) => checkin.beer?.name).slice(-3).reverse();
-				if (recentCheckins.length > 0) {
-					const list = document.createElement("ul");
-					list.className = "popup-beers";
-					for (const checkin of recentCheckins) {
-						const item = document.createElement("li");
-						const beer = document.createElement("span");
-						beer.className = "popup-beer";
-						beer.textContent = checkin.beer.name;
-						const date = document.createElement("span");
-						date.className = "popup-muted popup-date";
-						if (checkin.time !== null) {
-							date.textContent = parseLocalDate(checkin.date)
-								.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-						}
-						const brewery = document.createElement("span");
-						brewery.className = "popup-muted popup-brewery";
-						brewery.textContent = checkin.beer.brewery ?? "";
-						item.append(beer, date, brewery);
-						list.appendChild(item);
-					}
-					container.appendChild(list);
+				if (properties.first_checkin) {
+					const first = parseLocalDate(properties.first_checkin);
+					const last = parseLocalDate(properties.last_checkin ?? properties.first_checkin);
+					const visits = document.createElement("div");
+					visits.className = "popup-muted";
+					visits.textContent = first.toDateString() === last.toDateString()
+						? first.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+						: new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric" }).formatRange(first, last);
+					container.appendChild(visits);
 				}
 
 				const countParts = [countNoun(properties.total_venue_checkins ?? 1, "check-in")];
 				if (properties.unique_beers) {
 					countParts.push(countNoun(properties.unique_beers, "beer"));
 				}
-				if (properties.unique_breweries) {
+				if (properties.unique_breweries > 1) {
 					countParts.push(countNoun(properties.unique_breweries, "brewery", "breweries"));
 				}
 				if (properties.average_abv) {
@@ -1241,6 +1297,67 @@
 					container.appendChild(coverage);
 				}
 
+				const recentBeers = new Map();
+				for (const checkin of properties.checkins.toReversed()) {
+					if (!checkin.beer?.name) continue;
+					const key = checkin.beer.id ?? `${checkin.beer.name}\n${checkin.beer.brewery ?? ""}`;
+					const entry = recentBeers.get(key);
+					if (entry) entry.count += 1;
+					else recentBeers.set(key, { checkin, count: 1 });
+				}
+				const listedBeers = [...recentBeers.values()].slice(0, 3);
+				if (listedBeers.length > 0) {
+					const section = document.createElement("div");
+					section.className = "popup-section";
+					const heading = document.createElement("div");
+					heading.className = "popup-heading";
+					heading.textContent = "Recent";
+					const list = document.createElement("ul");
+					list.className = "popup-beers";
+					const listedBreweries = new Set(listedBeers.map(({ checkin }) => checkin.beer.brewery ?? ""));
+					const sharedBrewery = listedBreweries.size === 1 ? [...listedBreweries][0] : null;
+					for (const { checkin, count } of listedBeers) {
+						const item = document.createElement("li");
+						const beer = document.createElement("span");
+						beer.className = "popup-beer";
+						beer.textContent = checkin.beer.name;
+						if (count > 1) {
+							const times = document.createElement("span");
+							times.className = "popup-muted popup-count";
+							times.textContent = `×${count}`;
+							beer.append(" ", times);
+						}
+						const date = document.createElement("span");
+						date.className = "popup-muted popup-date";
+						if (checkin.time !== null) {
+							date.textContent = parseLocalDate(checkin.date)
+								.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+						}
+						item.append(beer, date);
+						if (sharedBrewery === null) {
+							const brewery = document.createElement("span");
+							brewery.className = "popup-muted popup-brewery";
+							brewery.textContent = checkin.beer.brewery ?? "";
+							item.append(brewery);
+						}
+						list.appendChild(item);
+					}
+					section.append(heading, list);
+					if (sharedBrewery) {
+						const brewery = document.createElement("div");
+						brewery.className = "popup-muted popup-note";
+						brewery.textContent = sharedBrewery;
+						section.append(brewery);
+					}
+					if (recentBeers.size > listedBeers.length) {
+						const more = document.createElement("div");
+						more.className = "popup-muted popup-note";
+						more.textContent = `+${countNoun(recentBeers.size - listedBeers.length, "more beer")}`;
+						section.append(more);
+					}
+					container.appendChild(section);
+				}
+
 				// Rendered features carry arrays as JSON strings; canonical ones as arrays.
 				let topStyles = properties.top_styles;
 				if (typeof topStyles === "string") {
@@ -1252,18 +1369,14 @@
 				}
 				if (Array.isArray(topStyles) && topStyles.length > 0) {
 					const styles = document.createElement("div");
-					styles.className = "popup-muted";
-					styles.textContent = topStyles.join(" · ");
+					styles.className = "popup-section popup-styles";
+					for (const style of topStyles) {
+						const chip = document.createElement("span");
+						chip.className = "popup-style";
+						chip.textContent = style;
+						styles.append(chip);
+					}
 					container.appendChild(styles);
-				}
-
-				if (properties.first_checkin) {
-					const visits = document.createElement("div");
-					visits.className = "popup-muted";
-					visits.textContent = properties.last_checkin && properties.last_checkin !== properties.first_checkin
-						? `${formatDate(properties.first_checkin)} – ${formatDate(properties.last_checkin)}`
-						: formatDate(properties.first_checkin);
-					container.appendChild(visits);
 				}
 
 				return container;
@@ -1911,6 +2024,10 @@
 			// A persistent handler re-adds them after any number of overlapping swaps;
 			// a once() per swap can fire twice on one style.load or get consumed early.
 			map.on("style.load", () => {
+				for (const [layer, paint] of Object.entries(currentTheme().paint ?? {})) {
+					if (!map.getLayer(layer)) continue;
+					for (const [property, value] of Object.entries(paint)) map.setPaintProperty(layer, property, value);
+				}
 				if (filteredCollection && !map.getSource("venues")) {
 					addMapData();
 				}

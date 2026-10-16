@@ -107,6 +107,7 @@ Each check-in includes its date, serving type, style, beer identity, beer name, 
 Dates use day precision. Ratings, comments, tagged friends, and exact times stay out of the page.
 The map includes clustered bubbles, a heatmap, playback, popups, and summary statistics.
 Dark mode follows the system theme.
+It recolors the OpenFreeMap Dark style to separate land, water, and roads.
 
 Open Filters & view to choose the display mode, metric, serving type, or style group.
 Groups use the Untappd prefix before ` - `. For example, IPA includes American and New England IPAs.
@@ -122,7 +123,7 @@ All dates resets the date range.
 Clear filters restores all dates, styles, and servings. It preserves the view and metric.
 
 Popup details reflect the active filters.
-Each popup lists the three most recent beers at the venue.
+Each popup lists the three most recent distinct beers at the venue, with a count for repeat check-ins.
 Cluster labels show total check-ins or average ABV, according to the selected metric.
 ABV averages use individual check-ins with listed values. The map shows missing ABV in gray and skips it in averages.
 
