@@ -222,7 +222,8 @@ def test_date_keyboard_entry_and_paused_links(page, site):
     page.goto(f"{origin}/beermap.html#3/40/-75.25")
     wait_for_map(page)
     start = page.locator("#date-start")
-    start.focus()
+    page.locator("#dates-button").click()
+    expect(start).to_be_focused()
     page.keyboard.press("ArrowRight")
     page.keyboard.press("ArrowRight")
     page.keyboard.type("2022", delay=30)
@@ -242,15 +243,21 @@ def test_date_keyboard_entry_and_paused_links(page, site):
     expect(page.locator("#stats")).to_contain_text("5 check-ins")
     page.locator("#play-button").click()
     page.wait_for_function(
-        "() => document.getElementById('time-label').textContent.includes('Through')"
+        "() => document.getElementById('dates-button').textContent.includes('Through')"
     )
     page.locator("#play-button").click()
-    page.wait_for_url(lambda address: "at" in parse_qs(urlsplit(address).query))
-    label = page.locator("#time-label").inner_text()
+    page.wait_for_function("""() => {
+        const at = new URLSearchParams(location.search).get('at');
+        return at !== null && document.getElementById('dates-button').textContent === 'Through '
+            + new Date(at).toLocaleDateString(
+                'en-US', {month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC'},
+            );
+    }""")
+    label = page.locator("#dates-button").inner_text()
     statistics = page.locator("#stats").inner_text()
     page.reload()
     wait_for_map(page)
-    expect(page.locator("#time-label")).to_have_text(label)
+    expect(page.locator("#dates-button")).to_have_text(label)
     expect(page.locator("#stats")).to_have_text(statistics, use_inner_text=True)
     expect(page.locator("#play-button")).to_have_attribute("aria-label", "Play")
     page.goto(f"{origin}/beermap.html?from=2030-01-01&through=2031-01-01")
@@ -287,12 +294,14 @@ def test_filtered_popups_clusters_and_lazy_sources(page, site):
     assert colors[0].replace(" ", "").replace("rgba(", "rgb(").replace(",1)", ")") == colors[
         1
     ].replace(" ", "")
+    page.locator("#filters-button").click()
     page.locator("#metric-abv").click()
     page.wait_for_function(
         "() => window.beermap.getLayer('cluster-counts').layout.get('text-field')"
         ".evaluate(window.beermap.queryRenderedFeatures({layers:['clusters']})[0])"
         ".toString() === '9.0%'"
     )
+    page.locator("#dates-button").click()
     page.locator("#date-start").fill("2024-03-10")
     page.locator("#date-start").press("Enter")
     page.locator("#date-end").fill("2024-03-10")
@@ -312,7 +321,6 @@ def test_filtered_popups_clusters_and_lazy_sources(page, site):
         });
     }""")
     expect(page.locator(".maplibregl-popup-content")).to_contain_text("10.0% avg ABV")
-    page.locator("#filters-button").click()
     page.locator("#style-filter").fill("IPA")
     page.locator("#style-filter").press("Enter")
     expect(page.locator(".maplibregl-popup-content")).to_contain_text("8.0% avg ABV")
@@ -411,7 +419,8 @@ def test_map_controls_remain_accessible(page, site, width, height):
     assert sidebar["y"] + sidebar["height"] < timeline["y"]
     assert timeline["x"] >= 0
     assert timeline["x"] + timeline["width"] <= width
-    assert sidebar["height"] < (160 if width <= 600 else 300)
+    assert sidebar["height"] < 100
+    assert timeline["height"] < 60
     expect(page.locator("#style-filter")).to_be_hidden()
     expect(page.locator("#reset-filters")).to_be_hidden()
     page.locator("#filters-button").click()
@@ -463,10 +472,12 @@ def test_map_controls_remain_accessible(page, site, width, height):
     page.keyboard.press("ArrowRight")
     expect(page.locator("#stats")).to_contain_text("4 check-ins")
     expect(page.get_by_role("button", name="Remove date filter")).to_be_visible()
-    if width <= 600:
-        expect(page.locator("#date-start")).to_be_hidden()
-        page.locator("#dates-button").click()
-        expect(page.locator("#date-start")).to_be_visible()
+    expect(page.locator("#date-start")).to_be_hidden()
+    page.locator("#dates-button").click()
+    expect(page.locator("#date-start")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator("#date-start")).to_be_hidden()
+    expect(page.locator("#dates-button")).to_be_focused()
     page.locator("#reset-filters").click()
     expect(page.locator("#stats")).to_contain_text("5 check-ins")
     expect(page.locator("#filter-chips")).to_be_hidden()
@@ -499,14 +510,21 @@ def test_mobile_sheet_preserves_view_and_touch_access(browser, site):
         wait_for_map(page)
         expect(page.locator("#filter-sheet")).to_be_hidden()
         expect(page.locator("#display-summary")).to_have_text("Heatmap · Check-ins")
-        page.locator(".maplibregl-ctrl-attrib-button").click()
-        page.wait_for_function("""() => {
+        attribution = page.locator(".maplibregl-ctrl-attrib")
+        expect(attribution).to_have_class(re.compile("maplibregl-compact-show"))
+        assert page.evaluate("""() => {
             const timeline = document.getElementById('time-control').getBoundingClientRect();
-            const attribution = document.querySelector('.maplibregl-ctrl-attrib')
-                .getBoundingClientRect();
-            return timeline.bottom < attribution.top;
+            return document.querySelector('.maplibregl-ctrl-attrib').getBoundingClientRect().bottom
+                <= timeline.top;
         }""")
         page.locator("#play-button").click()
+        expect(attribution).not_to_have_class(re.compile("maplibregl-compact-show"))
+        assert page.evaluate("""() => {
+            const timeline = document.getElementById('time-control').getBoundingClientRect();
+            const button = document.querySelector('.maplibregl-ctrl-attrib-button')
+                .getBoundingClientRect();
+            return button.left >= timeline.right || button.top >= timeline.bottom;
+        }""")
         expect(page.locator("#play-button")).to_have_attribute("aria-label", "Pause")
         page.locator("#play-button").click()
         page.locator("#filters-button").click()
@@ -515,6 +533,8 @@ def test_mobile_sheet_preserves_view_and_touch_access(browser, site):
         page.locator("#style-filter").fill("IPA")
         page.locator("#style-filter").press("Enter")
         for identifier in (
+            "play-button",
+            "dates-button",
             "close-filters",
             "bubbles-button",
             "metric-abv",
@@ -532,10 +552,11 @@ def test_mobile_sheet_preserves_view_and_touch_access(browser, site):
         page.locator("#filters-button").click()
         page.set_viewport_size({"width": 800, "height": 600})
         expect(page.locator("#filter-sheet")).to_be_hidden()
-        expect(page.locator("#bubbles-button")).to_be_visible()
+        expect(page.locator("#bubbles-button")).to_be_hidden()
         expect(page.locator("#style-filter")).to_be_hidden()
         expect(page.locator("#filters-button")).to_have_attribute("aria-expanded", "false")
         page.locator("#filters-button").click()
+        expect(page.locator("#bubbles-button")).to_be_visible()
         expect(page.locator("#style-filter")).to_have_value("IPA")
         assert errors == []
 

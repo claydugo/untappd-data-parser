@@ -99,6 +99,8 @@ Statistics always use the full input, regardless of the grouping key.
 Use `--open` to view it locally, or copy the file to any static host.
 Direct `file://` opening does not support the map workers.
 The map uses [MapLibre GL](https://maplibre.org) on [OpenFreeMap](https://openfreemap.org) tiles and needs internet access.
+The light theme uses the OpenFreeMap Positron style.
+The map attribution shows for five seconds, then collapses to an information button.
 
 Each venue includes its name, location, and check-in details.
 Each check-in includes its date, serving type, style, beer identity, beer name, brewery, and listed ABV.
@@ -106,11 +108,12 @@ Dates use day precision. Ratings, comments, tagged friends, and exact times stay
 The map includes clustered bubbles, a heatmap, playback, popups, and summary statistics.
 Dark mode follows the system theme.
 
-Open Filters to choose a serving type or search for a style group.
+Open Filters & view to choose the display mode, metric, serving type, or style group.
 Groups use the Untappd prefix before ` - `. For example, IPA includes American and New England IPAs.
 Remove a filter with its chip, even after you close the controls.
 
-On mobile, Filters & view opens a sheet. Tap All dates to show the date fields.
+On mobile, Filters & view opens a sheet.
+Select the date range next to the timeline to show the From and Through fields.
 Set From and Through to select an inclusive date range.
 Drag either slider handle to adjust the date range.
 
@@ -119,6 +122,7 @@ All dates resets the date range.
 Clear filters restores all dates, styles, and servings. It preserves the view and metric.
 
 Popup details reflect the active filters.
+Each popup lists the three most recent beers at the venue.
 Cluster labels show total check-ins or average ABV, according to the selected metric.
 ABV averages use individual check-ins with listed values. The map shows missing ABV in gray and skips it in averages.
 

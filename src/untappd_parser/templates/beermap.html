@@ -102,6 +102,7 @@
 				display: none !important;
 			}
 			.panel {
+				-webkit-tap-highlight-color: transparent;
 				background: var(--panel-bg);
 				border: 1px solid var(--panel-border);
 				border-radius: 12px;
@@ -124,28 +125,29 @@
 				text-decoration: underline;
 			}
 			.top-left {
-				display: flex;
-				flex-direction: column;
-				gap: 12px;
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) auto;
+				align-items: center;
+				gap: 4px 8px;
 				box-sizing: border-box;
-				padding: 16px;
+				padding: 10px 10px 10px 14px;
 			}
 			.map-sidebar {
 				position: absolute;
-				top: 12px;
-				left: 12px;
+				top: 10px;
+				left: 10px;
 				z-index: 1;
-				width: 320px;
-				max-height: calc(100dvh - var(--map-footer-height, 24px) - var(--time-control-height, 134px) - 36px);
+				width: 300px;
+				max-height: calc(100dvh - var(--time-control-height, 48px) - 32px);
 				overflow-y: auto;
 				overscroll-behavior: contain;
 				border-radius: 12px;
 			}
 			.stats {
+				display: contents;
 				font-variant-numeric: tabular-nums;
 			}
 			.results-heading,
-			.filter-actions,
 			.sheet-header {
 				display: flex;
 				align-items: center;
@@ -153,26 +155,34 @@
 				gap: 8px;
 			}
 			#checkin-count {
-				font-size: 18px;
+				font-size: 16px;
 				font-weight: 600;
 				letter-spacing: -0.3px;
+				white-space: nowrap;
 			}
-			#location-counts {
-				margin-top: 4px;
-				font-size: 12px;
-				line-height: 1.6;
-				color: var(--panel-muted);
-			}
+			#location-counts,
 			#display-summary {
-				display: none;
-				margin-top: 4px;
+				grid-column: 1 / -1;
 				font-size: 12px;
+				line-height: 1.4;
 				color: var(--panel-muted);
+				font-variant-numeric: tabular-nums;
+			}
+			#display-summary:empty {
+				display: none;
 			}
 			#display-controls,
 			#filter-fields {
 				display: grid;
 				gap: 12px;
+			}
+			#desktop-filters {
+				grid-column: 1 / -1;
+			}
+			#desktop-filters #filter-fields {
+				margin-top: 6px;
+				border-top: 1px solid var(--panel-border);
+				padding-top: 12px;
 			}
 			#desktop-filters:has(> [hidden]) {
 				display: none;
@@ -275,13 +285,18 @@
 				color: var(--panel-muted);
 			}
 			#reset-filters {
+				grid-column: 2;
+				align-self: start;
 				border: none;
 				background: transparent;
 				color: var(--panel-muted);
 				font: inherit;
 				font-size: 12px;
-				padding: 4px;
+				padding: 6px 4px;
 				cursor: pointer;
+			}
+			#reset-filters:hover {
+				color: var(--panel-text);
 			}
 			.panel :is(button, input, a):focus-visible {
 				outline: 2px solid var(--accent);
@@ -330,40 +345,47 @@
 			#legend-clusters {
 				flex-basis: 100%;
 			}
-			.filter-actions {
-				border-top: 1px solid var(--panel-border);
-				padding-top: 10px;
-			}
 			#filters-button,
 			#close-filters {
 				border: none;
 				border-radius: 8px;
-				padding: 8px 10px;
+				padding: 7px 10px;
 				background: var(--control-bg);
 				color: var(--panel-text);
 				font: inherit;
 				font-weight: 500;
 				cursor: pointer;
+				white-space: nowrap;
+			}
+			#filters-button {
+				grid-column: 2;
+				grid-row: 1;
+			}
+			#filters-button:hover,
+			#close-filters:hover {
+				background: color-mix(in srgb, var(--panel-text) 10%, transparent);
 			}
 			#filters-button::after {
 				content: "⌄";
-				margin-left: 8px;
+				margin-left: 6px;
 			}
 			#filters-button[aria-expanded="true"]::after {
 				content: "⌃";
 			}
 			#filter-chips {
+				grid-column: 1;
 				display: flex;
 				flex-wrap: wrap;
-				gap: 6px;
+				gap: 4px;
+				margin-top: 2px;
 			}
 			#filter-chips button {
 				max-width: 100%;
 				border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
-				border-radius: 8px;
+				border-radius: 999px;
 				background: color-mix(in srgb, var(--accent) 10%, transparent);
 				color: var(--panel-text);
-				padding: 6px 8px;
+				padding: 3px 9px;
 				font: inherit;
 				font-size: 12px;
 				cursor: pointer;
@@ -405,72 +427,79 @@
 				gap: 16px;
 				padding: 16px 16px max(16px, env(safe-area-inset-bottom));
 			}
-			#sheet-controls #filter-fields {
-				border-top: 1px solid var(--panel-border);
-				padding-top: 16px;
+			#display-controls {
+				border-bottom: 1px solid var(--panel-border);
+				padding-bottom: 12px;
+			}
+			.maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show) {
+				opacity: 0.45;
+				transition: opacity 0.2s;
+			}
+			.maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show):is(:hover, :focus-within) {
+				opacity: 1;
+			}
+			.maplibregl-ctrl-bottom-right:has(> .maplibregl-compact-show) {
+				bottom: calc(var(--time-control-height, 0px) + 6px);
 			}
 			.time-control {
 				position: absolute;
-				bottom: max(calc(var(--map-footer-height, 24px) + 12px), env(safe-area-inset-bottom));
-				left: 50%;
-				transform: translateX(-50%);
+				bottom: max(10px, env(safe-area-inset-bottom));
+				left: 44px;
+				right: 44px;
 				z-index: 1;
 				display: grid;
-				grid-template-columns: 32px minmax(0, 1fr);
+				grid-template-columns: auto minmax(0, 1fr) auto;
 				box-sizing: border-box;
-				width: min(480px, calc(100vw - 24px));
+				max-width: 560px;
+				margin-inline: auto;
 				align-items: center;
-				column-gap: 12px;
-				row-gap: 4px;
-				padding: 12px 16px;
+				column-gap: 6px;
+				padding: 4px;
+				border-radius: 999px;
 			}
 			.time-control button {
 				border: none;
 				background: transparent;
 				color: var(--panel-text);
 				font: inherit;
-				padding: 4px 0;
 				cursor: pointer;
-			}
-			.time-header {
-				grid-column: 1 / -1;
-				display: flex;
-				align-items: center;
-				justify-content: space-between;
-				gap: 8px;
-			}
-			.time-control .time-label {
-				font-weight: 600;
-				text-align: left;
-			}
-			#dates-button {
-				display: none;
-			}
-			#reset-dates {
-				flex-shrink: 0;
-			}
-			#reset-dates {
-				font-size: 12px;
-				color: var(--panel-muted);
-			}
-			#reset-dates:hover {
-				color: var(--panel-text);
 			}
 			#play-button {
 				width: 32px;
 				height: 32px;
+				padding: 0;
 				border-radius: 50%;
 				background: var(--control-bg);
 			}
+			#dates-button {
+				padding: 6px 10px;
+				border-radius: 999px;
+				font-size: 12px;
+				font-weight: 600;
+				white-space: nowrap;
+				font-variant-numeric: tabular-nums;
+			}
+			#play-button:hover:not(:disabled),
+			#dates-button:hover {
+				background: color-mix(in srgb, var(--panel-text) 10%, transparent);
+			}
+			#dates-button::after {
+				content: "⌃";
+				margin-left: 6px;
+				color: var(--panel-muted);
+			}
+			#dates-button[aria-expanded="true"]::after {
+				content: "⌄";
+			}
 			.time-range {
 				position: relative;
-				height: 36px;
+				height: 32px;
 				touch-action: none;
 				cursor: pointer;
 			}
 			.range-track {
 				position: absolute;
-				top: 16px;
+				top: 14px;
 				left: 12px;
 				right: 12px;
 				height: 4px;
@@ -498,7 +527,7 @@
 				position: absolute;
 				inset: 0;
 				width: 100%;
-				height: 36px;
+				height: 32px;
 				margin: 0;
 				appearance: none;
 				background: transparent;
@@ -513,7 +542,7 @@
 				box-sizing: border-box;
 				width: 24px;
 				height: 24px;
-				border: 3px solid var(--panel-bg);
+				border: 4px solid var(--panel-bg);
 				border-radius: 50%;
 				background: var(--accent);
 				box-shadow: 0 0 0 1px var(--accent);
@@ -522,7 +551,7 @@
 				box-sizing: border-box;
 				width: 24px;
 				height: 24px;
-				border: 3px solid var(--panel-bg);
+				border: 4px solid var(--panel-bg);
 				border-radius: 50%;
 				background: var(--accent);
 				box-shadow: 0 0 0 1px var(--accent);
@@ -534,14 +563,19 @@
 				box-shadow: 0 0 0 3px var(--panel-bg), 0 0 0 5px var(--accent);
 			}
 			.time-dates {
-				grid-column: 2;
+				position: absolute;
+				right: 0;
+				bottom: calc(100% + 8px);
 				display: grid;
 				grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-				gap: 16px;
+				gap: 8px 12px;
+				box-sizing: border-box;
+				width: min(320px, 100%);
+				padding: 12px;
 			}
 			.time-dates label {
 				display: grid;
-				gap: 2px;
+				gap: 4px;
 				font-size: 11px;
 				color: var(--panel-muted);
 			}
@@ -549,89 +583,37 @@
 				box-sizing: border-box;
 				width: 100%;
 				min-width: 0;
-				border: 1px solid transparent;
+				border: 1px solid var(--panel-border);
 				border-radius: 8px;
-				background: transparent;
+				background: var(--control-bg);
 				color: var(--panel-text);
 				font: inherit;
 				font-size: 12px;
-				padding: 4px;
+				padding: 6px;
 				color-scheme: light dark;
 			}
-			.time-dates input:hover {
-				border-color: var(--panel-border);
-				background: var(--control-bg);
+			#reset-dates {
+				grid-column: 1 / -1;
+				justify-self: end;
+				padding: 4px;
+				font-size: 12px;
+				color: var(--panel-muted);
+			}
+			#reset-dates:hover {
+				color: var(--panel-text);
 			}
 			@media (max-width: 600px) {
 				.map-sidebar {
-					width: calc(100vw - 72px);
+					width: calc(100vw - 64px);
 				}
-				.top-left {
-					display: grid;
-					grid-template-columns: minmax(0, 1fr) auto;
-					align-items: center;
-					gap: 8px;
-					padding: 12px;
-				}
-				.stats {
-					display: contents;
-				}
-				#location-counts,
-				#display-summary {
-					grid-column: 1 / -1;
-					margin-top: 0;
-				}
-				#filter-chips {
-					grid-column: 1;
-					grid-row: 4;
-				}
-				#reset-filters {
-					grid-column: 2;
-					grid-row: 4;
-					align-self: start;
-				}
-				#desktop-controls,
 				#desktop-filters {
 					display: none;
-				}
-				#checkin-count {
-					font-size: 16px;
 				}
 				#location-counts {
 					font-size: 11px;
 				}
-				#display-summary:not(:empty) {
-					display: block;
-				}
-				.filter-actions {
-					display: contents;
-				}
-				#filters-button {
-					grid-column: 2;
-					grid-row: 1;
-					padding: 8px;
-				}
 				.time-control {
-					padding: 8px 12px;
-					grid-template-columns: 44px minmax(0, 1fr);
-					column-gap: 8px;
-				}
-				#time-label {
-					display: none;
-				}
-				#dates-button {
-					display: block;
-				}
-				#dates-button::after {
-					content: "⌄";
-					margin-left: 8px;
-				}
-				#dates-button[aria-expanded="true"]::after {
-					content: "⌃";
-				}
-				.time-dates {
-					grid-column: 1 / -1;
-					gap: 8px;
+					left: 10px;
 				}
 			}
 			@media (pointer: coarse) {
@@ -641,6 +623,10 @@
 				.sibling a {
 					min-height: 44px;
 					box-sizing: border-box;
+				}
+				#filter-chips button,
+				#reset-filters {
+					min-height: 32px;
 				}
 				.sibling a {
 					display: inline-flex;
@@ -700,6 +686,33 @@
 			.popup-muted {
 				color: var(--panel-muted);
 			}
+			.popup-beers {
+				display: grid;
+				gap: 6px;
+				margin: 8px 0;
+				padding: 0;
+				list-style: none;
+			}
+			.popup-beers li {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) auto;
+				column-gap: 12px;
+				line-height: 1.3;
+			}
+			.popup-beer {
+				font-weight: 500;
+			}
+			.popup-date {
+				font-size: 12px;
+				font-variant-numeric: tabular-nums;
+			}
+			.popup-brewery {
+				grid-column: 1 / -1;
+				font-size: 12px;
+			}
+			.popup-brewery:empty {
+				display: none;
+			}
 			/* A hover popup under the cursor would steal the click and flicker on mouseleave. */
 			.hover-popup {
 				pointer-events: none;
@@ -718,7 +731,11 @@
 				<div id="location-counts"></div>
 				<div id="display-summary"></div>
 			</div>
-			<div id="desktop-controls">
+			<button id="filters-button" type="button" aria-expanded="false" aria-controls="filter-fields">Filters &amp; view</button>
+			<div id="filter-chips" role="group" aria-label="Active filters" hidden></div>
+			<button id="reset-filters" type="button" hidden>Clear filters</button>
+			<div id="desktop-filters">
+			<div id="filter-fields" hidden>
 			<div id="display-controls">
 			<div class="control-group" id="view-toggle" hidden>
 				<div class="view-toggle" role="group" aria-label="Map view">
@@ -754,14 +771,6 @@
 				<div class="coverage" id="legend-clusters" hidden>Cluster labels show check-ins</div>
 			</div>
 			</div>
-			</div>
-			<div class="filter-actions">
-				<button id="filters-button" type="button" aria-expanded="false" aria-controls="filter-fields">Filters</button>
-				<button id="reset-filters" type="button" hidden>Clear filters</button>
-			</div>
-			<div id="filter-chips" role="group" aria-label="Active filters" hidden></div>
-			<div id="desktop-filters">
-			<div id="filter-fields" hidden>
 			<div class="control-group" id="serving-toggle" hidden>
 				<span class="control-label">Serving</span>
 				<div class="view-toggle" role="group" aria-label="Serving type">
@@ -795,20 +804,17 @@
 			<div id="sheet-controls"></div>
 		</dialog>
 		<div class="panel time-control" id="time-control" hidden>
-			<div class="time-header">
-				<span class="time-label" id="time-label">All check-ins</span>
-				<button class="time-label" id="dates-button" type="button" aria-expanded="false" aria-controls="time-dates">All dates</button>
-				<button id="reset-dates" type="button" hidden>All dates</button>
-			</div>
 			<button id="play-button" type="button" aria-label="Play">&#9654;</button>
 			<div class="time-range" id="time-range" role="group" aria-label="Check-in date range">
 				<div class="range-track"><div class="range-selection"></div><div id="playhead" hidden></div></div>
 				<input id="time-start-slider" type="range" min="0" max="0" value="0" aria-label="Start date">
 				<input id="time-slider" type="range" min="0" max="0" value="0" aria-label="End date">
 			</div>
-			<div class="time-dates" id="time-dates">
+			<button id="dates-button" type="button" aria-expanded="false" aria-controls="time-dates"></button>
+			<div class="panel time-dates" id="time-dates" role="group" aria-label="Exact dates" hidden>
 				<label>From <input id="date-start" type="date"></label>
 				<label>Through <input id="date-end" type="date"></label>
+				<button id="reset-dates" type="button" hidden>All dates</button>
 			</div>
 		</div>
 		<script type="application/json" id="venue-data">"__UNTAPPD_VENUE_DATA__"</script>
@@ -816,11 +822,11 @@
 			import * as maplibregl from "https://cdn.jsdelivr.net/npm/maplibre-gl@6.0.0/dist/maplibre-gl.mjs";
 
 			const darkScheme = matchMedia("(prefers-color-scheme: dark)");
-			// Amber ramps: light validated on the Liberty basemap, dark against
+			// Amber ramps: light validated on the Positron basemap, dark against
 			// the dark style surface (#0c0c0c). Bucket order is 1, 2-4, 5+.
 			const themes = {
 				light: {
-					style: "https://tiles.openfreemap.org/styles/liberty",
+					style: "https://tiles.openfreemap.org/styles/positron",
 					buckets: ["#F59E0B", "#EA580C", "#9A3412"],
 					cluster: "#37474F",
 					heat: [0, "rgba(245, 158, 11, 0)", 0.15, "#FDE68A", 0.4, "#F59E0B", 0.7, "#EA580C", 1, "#9A3412"],
@@ -845,9 +851,20 @@
 				zoom: 3,
 				hash: true,
 				attributionControl: { compact: true },
+				dragRotate: false,
+				touchPitch: false,
 			});
-			map.addControl(new maplibregl.NavigationControl(), "top-right");
+			map.touchZoomRotate.disableRotation();
+			map.keyboard.disableRotation();
+			map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 			map.addControl(new maplibregl.FullscreenControl(), "top-right");
+			const attribution = map.getContainer().querySelector(".maplibregl-ctrl-attrib");
+			const collapseAttribution = () => attribution?.classList.remove("maplibregl-compact-show");
+			map.once("load", () => setTimeout(collapseAttribution, 5000));
+			map.on("wheel", collapseAttribution);
+			document.addEventListener("pointerdown", (event) => {
+				if (!attribution?.contains(event.target)) collapseAttribution();
+			});
 			// Exposed for driving the map from Playwright.
 			window.beermap = map;
 
@@ -878,7 +895,6 @@
 			const timeSlider = document.getElementById("time-slider");
 			const timeStartSlider = document.getElementById("time-start-slider");
 			const timeRange = document.getElementById("time-range");
-			const timeLabel = document.getElementById("time-label");
 			const dateStart = document.getElementById("date-start");
 			const dateEnd = document.getElementById("date-end");
 			const mobileLayout = matchMedia("(max-width: 600px)");
@@ -889,9 +905,6 @@
 			const resetFilters = document.getElementById("reset-filters");
 			const datesButton = document.getElementById("dates-button");
 			const timeDates = document.getElementById("time-dates");
-			new ResizeObserver((entries) => {
-				document.documentElement.style.setProperty("--map-footer-height", `${entries[0].borderBoxSize[0].blockSize}px`);
-			}).observe(map.getContainer().querySelector(".maplibregl-ctrl-bottom-right"));
 			new ResizeObserver((entries) => {
 				document.documentElement.style.setProperty("--time-control-height", `${entries[0].borderBoxSize[0].blockSize}px`);
 			}).observe(timeControlElement);
@@ -934,7 +947,7 @@
 				document.getElementById("display-summary").textContent = viewMode === "heatmap" ? "Heatmap · Check-ins"
 					: activeMetric === "abv" ? "Bubbles · Avg ABV" : "";
 				const selection = JSON.stringify([activeServing, activeStyle, timeStartSlider.value, timeSlider.value,
-					playbackDay !== null, mobileLayout.matches]);
+					playbackDay !== null]);
 				if (filterChips.dataset.selection === selection) return;
 				filterChips.dataset.selection = selection;
 				const filters = [];
@@ -951,8 +964,6 @@
 					filters.push(["dates", label, "Remove date filter"]);
 				}
 				if (playbackDay !== null) filters.push(["playback", "Playback", "Clear playback position"]);
-				filtersButton.textContent = (mobileLayout.matches ? "Filters & view" : "Filters")
-					+ (filters.length ? ` (${filters.length})` : "");
 				const focusedFilter = filterChips.contains(document.activeElement) ? document.activeElement.dataset.filter : null;
 				filterChips.replaceChildren(...filters.map(([key, label, description]) => {
 					const button = document.createElement("button");
@@ -972,22 +983,20 @@
 			const arrangeControls = () => {
 				filterSheet.close();
 				closeStyleOptions();
-				const displayControls = document.getElementById("display-controls");
 				if (mobileLayout.matches) {
-					document.getElementById("sheet-controls").append(displayControls, filterFields);
+					document.getElementById("sheet-controls").append(filterFields);
 					filterFields.hidden = false;
 					filtersButton.setAttribute("aria-controls", "filter-sheet");
 					filtersButton.setAttribute("aria-haspopup", "dialog");
 				} else {
-					document.getElementById("desktop-controls").append(displayControls);
 					document.getElementById("desktop-filters").append(filterFields);
 					filterFields.hidden = true;
 					filtersButton.setAttribute("aria-controls", "filter-fields");
 					filtersButton.removeAttribute("aria-haspopup");
 				}
 				filtersButton.setAttribute("aria-expanded", "false");
-				timeDates.hidden = mobileLayout.matches;
-				datesButton.setAttribute("aria-expanded", "false");
+				closeTimeDates();
+				if (timeline) updateTimeLabel();
 				updateFilterSummary();
 			};
 			mobileLayout.addEventListener("change", arrangeControls);
@@ -1024,9 +1033,23 @@
 				if (event.target === filterSheet && (event.clientY < rectangle.top || event.clientY > rectangle.bottom
 					|| event.clientX < rectangle.left || event.clientX > rectangle.right)) filterSheet.close();
 			});
+			function closeTimeDates() {
+				timeDates.hidden = true;
+				datesButton.setAttribute("aria-expanded", "false");
+			}
 			datesButton.addEventListener("click", () => {
 				timeDates.hidden = !timeDates.hidden;
 				datesButton.setAttribute("aria-expanded", String(!timeDates.hidden));
+				if (!timeDates.hidden) dateStart.focus();
+			});
+			timeDates.addEventListener("keydown", (event) => {
+				if (event.key !== "Escape") return;
+				event.preventDefault();
+				closeTimeDates();
+				datesButton.focus();
+			});
+			document.addEventListener("pointerdown", (event) => {
+				if (!timeDates.hidden && !timeControlElement.contains(event.target)) closeTimeDates();
 			});
 			document.getElementById("legend-info").addEventListener("click", (event) => {
 				const description = document.getElementById("legend-clusters");
@@ -1144,10 +1167,6 @@
 					if (checkin.beer?.id) beers.add(checkin.beer.id);
 					if (checkin.beer?.brewery) breweries.add(checkin.beer.brewery);
 					if (checkin.style) styles.set(checkin.style, (styles.get(checkin.style) ?? 0) + 1);
-					if (checkin.beer?.name) {
-						properties.last_beer_name = checkin.beer.name;
-						properties.last_beer_brewery = checkin.beer.brewery;
-					}
 					if (checkin.time !== null) {
 						if (properties.first_checkin) properties.last_checkin = checkin.date;
 						else properties.first_checkin = checkin.date;
@@ -1176,12 +1195,28 @@
 					container.appendChild(place);
 				}
 
-				if (properties.last_beer_name) {
-					const lastBeer = document.createElement("div");
-					const beerParts = [properties.last_beer_name, properties.last_beer_brewery].filter(Boolean);
-					const label = (properties.total_venue_checkins ?? 1) > 1 ? "Last beer" : "Beer";
-					lastBeer.textContent = `${label}: ${beerParts.join(" · ")}`;
-					container.appendChild(lastBeer);
+				const recentCheckins = properties.checkins.filter((checkin) => checkin.beer?.name).slice(-3).reverse();
+				if (recentCheckins.length > 0) {
+					const list = document.createElement("ul");
+					list.className = "popup-beers";
+					for (const checkin of recentCheckins) {
+						const item = document.createElement("li");
+						const beer = document.createElement("span");
+						beer.className = "popup-beer";
+						beer.textContent = checkin.beer.name;
+						const date = document.createElement("span");
+						date.className = "popup-muted popup-date";
+						if (checkin.time !== null) {
+							date.textContent = parseLocalDate(checkin.date)
+								.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+						}
+						const brewery = document.createElement("span");
+						brewery.className = "popup-muted popup-brewery";
+						brewery.textContent = checkin.beer.brewery ?? "";
+						item.append(beer, date, brewery);
+						list.appendChild(item);
+					}
+					container.appendChild(list);
 				}
 
 				const countParts = [countNoun(properties.total_venue_checkins ?? 1, "check-in")];
@@ -1223,16 +1258,12 @@
 				}
 
 				if (properties.first_checkin) {
-					const first = document.createElement("div");
-					first.className = "popup-muted";
-					first.textContent = `First: ${formatDate(properties.first_checkin)}`;
-					container.appendChild(first);
-				}
-				if (properties.last_checkin) {
-					const last = document.createElement("div");
-					last.className = "popup-muted";
-					last.textContent = `Last: ${formatDate(properties.last_checkin)}`;
-					container.appendChild(last);
+					const visits = document.createElement("div");
+					visits.className = "popup-muted";
+					visits.textContent = properties.last_checkin && properties.last_checkin !== properties.first_checkin
+						? `${formatDate(properties.first_checkin)} – ${formatDate(properties.last_checkin)}`
+						: formatDate(properties.first_checkin);
+					container.appendChild(visits);
 				}
 
 				return container;
@@ -1622,8 +1653,10 @@
 					layout: {
 						visibility: bubbleVisibility,
 						"text-field": ["number-format", ["get", "total_venue_checkins"], {}],
-						"text-font": ["Noto Sans Regular"],
+						"text-font": ["Noto Sans Bold"],
 						"text-size": 12,
+						"text-allow-overlap": true,
+						"text-ignore-placement": true,
 					},
 					paint: {
 						"text-color": "#ffffff",
@@ -1637,7 +1670,10 @@
 					type: "circle",
 					source: "venues",
 					filter: ["!", ["has", "point_count"]],
-					layout: { visibility: bubbleVisibility },
+					layout: {
+						visibility: bubbleVisibility,
+						"circle-sort-key": ["get", "total_venue_checkins"],
+					},
 					paint: {
 						...bubblePaint(theme),
 						"circle-stroke-width": 1.5,
@@ -1693,16 +1729,17 @@
 					.toISOString().slice(0, 10);
 				dateEnd.value = new Date(timeline.startMs + Number(timeSlider.value) * 86_400_000)
 					.toISOString().slice(0, 10);
-				timeLabel.textContent = Number(timeStartSlider.value) === 0
-					&& Number(timeSlider.value) === timeline.totalDays ? "All check-ins" : "Date range";
-				datesButton.textContent = timeLabel.textContent === "All check-ins" ? "All dates"
-					: `${parseLocalDate(dateStart.value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })} – ${parseLocalDate(dateEnd.value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })}`;
-				document.getElementById("reset-dates").hidden = timeLabel.textContent === "All check-ins" && playbackDay === null;
+				const shortDate = (date, day) => `${date.toLocaleDateString("en-US", { month: "short", day: day ? "numeric" : undefined, timeZone: "UTC" })}${
+					mobileLayout.matches ? ` ’${String(date.getUTCFullYear()).slice(2)}` : `${day ? "," : ""} ${date.getUTCFullYear()}`}`;
+				const start = shortDate(new Date(dateStart.value), false);
+				const end = shortDate(new Date(dateEnd.value), false);
+				datesButton.textContent = start === end ? start : `${start} – ${end}`;
+				document.getElementById("reset-dates").hidden = Number(timeStartSlider.value) === 0
+					&& Number(timeSlider.value) === timeline.totalDays && playbackDay === null;
 				playButton.disabled = timeStartSlider.value === timeSlider.value;
 				document.getElementById("playhead").hidden = playbackDay === null;
 				if (playbackDay !== null) {
-					timeLabel.textContent = `Through ${formatDate(new Date(timeline.startMs + playbackDay * 86_400_000).toISOString().slice(0, 10))}`;
-					datesButton.textContent = timeLabel.textContent;
+					datesButton.textContent = `Through ${shortDate(new Date(timeline.startMs + playbackDay * 86_400_000), true)}`;
 					timeRange.style.setProperty("--playhead", `${timeline.totalDays ? playbackDay / timeline.totalDays * 100 : 50}%`);
 				}
 				timeRange.style.setProperty("--range-start", `${timeline.totalDays
@@ -1885,9 +1922,6 @@
 
 			map.on("load", async () => {
 				mapLoaded = true;
-				if (mobileLayout.matches) {
-					map.getContainer().querySelector(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show");
-				}
 				let venues;
 				try {
 					// The data is inlined by default. ?data= lets an embedding page point at a
@@ -1942,12 +1976,37 @@
 				legendElement.hidden = viewMode !== "bubbles";
 
 				if (!startedWithHash) {
-					const bounds = new maplibregl.LngLatBounds();
+					let bounds = new maplibregl.LngLatBounds();
 					for (const { feature } of canonicalFeatures) {
 						bounds.extend(feature.geometry.coordinates);
 					}
 					if (!bounds.isEmpty()) {
-						map.fitBounds(bounds, { padding: 48, maxZoom: 10 });
+						const container = map.getContainer().getBoundingClientRect();
+						const fitOptions = {
+							padding: {
+								top: Math.min(container.height / 3,
+									document.querySelector(".map-sidebar").getBoundingClientRect().bottom - container.top + 24),
+								bottom: Math.min(container.height / 3,
+									container.bottom - timeControlElement.getBoundingClientRect().top + 24),
+								left: 32,
+								right: 32,
+							},
+							maxZoom: 10,
+						};
+						if ((map.cameraForBounds(bounds, fitOptions)?.zoom ?? 0) < 1) {
+							const weighted = canonicalFeatures.map(({ feature, checkins }) =>
+								[feature.geometry.coordinates, Math.max(1, checkins.length)]);
+							const total = weighted.reduce((sum, [, weight]) => sum + weight, 0);
+							const [longitudes, latitudes] = [0, 1].map((axis) => {
+								let running = 0;
+								const cumulative = weighted
+									.toSorted((first, second) => first[0][axis] - second[0][axis])
+									.map(([coordinates, weight]) => [coordinates[axis], running += weight]);
+								return [0.05, 0.95].map((fraction) => cumulative.find(([, sum]) => sum >= total * fraction)[0]);
+							});
+							bounds = new maplibregl.LngLatBounds([longitudes[0], latitudes[0]], [longitudes[1], latitudes[1]]);
+						}
+						map.fitBounds(bounds, fitOptions);
 					}
 				}
 
